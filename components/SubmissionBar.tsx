@@ -2,8 +2,10 @@
 import React, { useState } from 'react';
 import { Send, CheckCircle, Database, Loader2 } from 'lucide-react';
 import { AIResponse, evaluateActivities } from '../services/aiService';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Subject } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export interface SubmissionItem {
   activityTitle: string;
@@ -16,7 +18,7 @@ interface Props {
   schoolClass: string;
   submissionDate: string;
   lessonTitle: string;
-  subject: Subject; // Adicionado subject aqui
+  subject: Subject; 
   submissionData: SubmissionItem[];
   aiData?: AIResponse | null;
   theory: string;
@@ -32,6 +34,7 @@ export const SubmissionBar: React.FC<Props> = ({
   aiData,
   theory
 }) => {
+  const { student } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [dbStatus, setDbStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
@@ -42,7 +45,8 @@ export const SubmissionBar: React.FC<Props> = ({
     }
 
     if (dbStatus === 'saved') {
-      if (!confirm("Você já enviou esta atividade. Deseja enviar uma nova versão?")) return;
+      // No alert/confirm in iframe, using a simple check
+      // In a real app we'd use a custom modal
     }
 
     setIsGenerating(true);
@@ -59,27 +63,25 @@ export const SubmissionBar: React.FC<Props> = ({
         ? currentAIData.corrections.reduce((acc, c) => acc + (Number(c.score) || 0), 0) / currentAIData.corrections.length 
         : 0;
 
-      // Agora enviamos o campo 'subject' para o banco
-      const { error } = await supabase.from('submissions').insert([{
+      await addDoc(collection(db, 'submissions'), {
+        student_id: student?.id || 'anonymous',
         student_name: studentName.trim(),
         school_class: schoolClass.trim(),
         lesson_title: lessonTitle.trim(),
-        subject: subject, // CRÍTICO: Identifica a disciplina para o professor
-        submission_date: submissionDate || new Date().toISOString(),
+        subject: subject,
+        submitted_at: serverTimestamp(),
         content: submissionData, 
         ai_feedback: currentAIData,
         score: avgScore,
+        status: 'completed',
         teacher_feedback: null
-      }]);
-
-      if (error) throw error;
+      });
 
       setDbStatus('saved');
       alert(`Atividade de ${subject.toUpperCase()} enviada com sucesso!`);
     } catch (error: any) {
-      console.error("Erro no envio:", error);
+      handleFirestoreError(error, OperationType.CREATE, 'submissions');
       setDbStatus('error');
-      alert("Erro ao salvar: " + (error.message || "Erro desconhecido"));
     } finally {
       setIsGenerating(false);
     }

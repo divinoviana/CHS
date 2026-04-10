@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, MessageCircle, Loader2, UserCircle, BellRing, ChevronRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { subjectsInfo } from '../data';
 import { Subject } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 export const Contact: React.FC = () => {
   const navigate = useNavigate();
-  // Fix: useAuth provides the correctly persisted student data and manages key names
   const { student, isLoading: isAuthLoading } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -26,38 +26,49 @@ export const Contact: React.FC = () => {
 
   useEffect(() => {
     if (!selectedSubject || !student) return;
-    fetchMessages();
-    const channel = supabase.channel(`chat-${student.id}-${selectedSubject}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `sender_id=eq.${student.id}` }, 
-      () => fetchMessages()).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    
+    setLoadingMessages(true);
+    const q = query(
+      collection(db, 'messages'),
+      where('sender_id', '==', student.id),
+      where('subject', '==', selectedSubject),
+      orderBy('created_at', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMessages(msgs);
+      setLoadingMessages(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'messages');
+      setLoadingMessages(false);
+    });
+
+    return () => unsubscribe();
   }, [selectedSubject, student]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const fetchMessages = async () => {
-    if (!selectedSubject || !student) return;
-    setLoadingMessages(true);
-    const { data } = await supabase.from('messages').select('*')
-      .eq('sender_id', student.id).eq('subject', selectedSubject).order('created_at', { ascending: true });
-    setMessages(data || []);
-    setLoadingMessages(false);
-  };
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !student || !selectedSubject) return;
     setSending(true);
     try {
-      const { error } = await supabase.from('messages').insert([{
-        sender_id: student.id, sender_name: student.name,
-        school_class: student.school_class, grade: student.grade,
-        content: newMessage.trim(), is_from_teacher: false, subject: selectedSubject
-      }]);
-      if (error) throw error;
+      await addDoc(collection(db, 'messages'), {
+        sender_id: student.id, 
+        sender_name: student.name,
+        school_class: student.school_class, 
+        grade: student.grade,
+        content: newMessage.trim(), 
+        is_from_teacher: false, 
+        subject: selectedSubject,
+        created_at: serverTimestamp()
+      });
       setNewMessage('');
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.CREATE, 'messages');
     } finally { setSending(false); }
   };
 
@@ -125,7 +136,7 @@ export const Contact: React.FC = () => {
                     }`}>
                       {msg.is_from_teacher && <p className="text-[8px] font-black text-tocantins-blue uppercase mb-1 tracking-widest">Aviso do Professor</p>}
                       <p className="break-words font-medium">{msg.content}</p>
-                      <p className={`text-[9px] mt-2 font-bold flex justify-end ${msg.is_from_teacher ? 'text-slate-400' : 'text-blue-200'}`}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className={`text-[9px] mt-2 font-bold flex justify-end ${msg.is_from_teacher ? 'text-slate-400' : 'text-blue-200'}`}>{msg.created_at?.toDate ? msg.created_at.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
                 ))

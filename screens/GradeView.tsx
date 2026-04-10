@@ -5,7 +5,8 @@ import { curriculumData, subjectsInfo } from '../data';
 import { Book, ArrowLeft, ShieldAlert, ChevronRight, BrainCircuit, CheckCircle2, Clock, Award, Lock } from 'lucide-react';
 import { Subject } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export const GradeView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -38,26 +39,31 @@ export const GradeView: React.FC = () => {
     if (!student || !subjectKey) return;
     setLoadingExams(true);
     try {
-      const { data: examsData, error: examError } = await supabase
-        .from('bimonthly_exams')
-        .select('*')
-        .eq('grade', Number(id))
-        .eq('subject', subjectKey)
-        .or(`school_class.is.null,school_class.eq."${student.school_class.trim()}"`)
-        .order('created_at', { ascending: false });
+      const examsQ = query(
+        collection(db, 'bimonthly_exams'),
+        where('grade', '==', Number(id)),
+        where('subject', '==', subjectKey),
+        orderBy('created_at', 'desc')
+      );
+      
+      const examsSnapshot = await getDocs(examsQ);
+      const examsData = examsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((exam: any) => !exam.school_class || exam.school_class === student.school_class.trim());
 
-      if (examError) console.error("Erro ao carregar exames:", examError);
-
-      const { data: subsData } = await supabase
-        .from('submissions')
-        .select('lesson_title')
-        .eq('student_name', student.name.trim())
-        .eq('subject', subjectKey);
+      const subsQ = query(
+        collection(db, 'submissions'),
+        where('student_id', '==', student.id),
+        where('subject', '==', subjectKey)
+      );
+      
+      const subsSnapshot = await getDocs(subsQ);
+      const subsData = subsSnapshot.docs.map(doc => doc.data().lesson_title.trim());
 
       setExams(examsData || []);
-      setUserSubmissions(subsData?.map(s => s.lesson_title.trim()) || []);
+      setUserSubmissions(subsData || []);
     } catch (e) {
-      console.error(e);
+      handleFirestoreError(e, OperationType.LIST, 'bimonthly_exams');
     } finally {
       setLoadingExams(false);
     }

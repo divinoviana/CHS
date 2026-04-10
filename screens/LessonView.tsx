@@ -42,16 +42,14 @@ export const LessonView: React.FC = () => {
       if (!foundLesson) return;
       setIsActivityLoading(true);
       try {
-        const { supabase } = await import('../lib/supabase');
+        const { db, handleFirestoreError, OperationType } = await import('../firebase');
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
         
         // 1. Fetch activity
-        const { data: actData, error: actError } = await supabase
-          .from('activities')
-          .select('id, visual_content')
-          .eq('lesson_id', lessonId)
-          .maybeSingle();
+        const q = query(collection(db, 'activities'), where('lesson_id', '==', lessonId));
+        const actSnapshot = await getDocs(q);
 
-        if (actError || !actData) {
+        if (actSnapshot.empty) {
           // Se não encontrou no banco, gera uma atividade de fallback na hora para o aluno não ficar sem nada
           const { generateFallbackActivity } = await import('../services/aiService');
           const fallbackActivity = generateFallbackActivity(foundLesson.title, foundLesson.theory, foundLesson.questions);
@@ -62,14 +60,20 @@ export const LessonView: React.FC = () => {
           return;
         }
 
-        // 2. Fetch questions
-        const { data: qData, error: qError } = await supabase
-          .from('activity_questions')
-          .select('order_num, question_bank(*)')
-          .eq('activity_id', actData.id)
-          .order('order_num', { ascending: true });
+        const actDoc = actSnapshot.docs[0];
+        const actData = { id: actDoc.id, ...actDoc.data() } as any;
 
-        if (qError || !qData || qData.length === 0) {
+        // 2. Fetch questions
+        // In Firestore, we query the questions collection by topic and subject
+        const q2 = query(
+          collection(db, 'questions'),
+          where('topic', '==', foundLesson.title),
+          where('subject', '==', foundLesson.subject)
+        );
+        
+        const qSnapshot = await getDocs(q2);
+
+        if (qSnapshot.empty) {
           // Se encontrou a atividade mas não encontrou as questões, gera o fallback
           const { generateFallbackActivity } = await import('../services/aiService');
           const fallbackActivity = generateFallbackActivity(foundLesson.title, foundLesson.theory, foundLesson.questions);
@@ -83,8 +87,8 @@ export const LessonView: React.FC = () => {
         const objectives: any[] = [];
         const discursives: any[] = [];
 
-        qData.forEach((row: any) => {
-          const q = row.question_bank;
+        qSnapshot.docs.forEach((doc) => {
+          const q = { id: doc.id, ...doc.data() } as any;
           if (q.type === 'objective') {
             objectives.push({
               id: q.id,

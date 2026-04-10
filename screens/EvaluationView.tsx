@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, getDocs, getDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { subjectsInfo } from '../data';
 import { Subject } from '../types';
@@ -30,40 +31,37 @@ export const EvaluationView: React.FC = () => {
   }, [examId, student, isAuthLoading]);
 
   const checkAttemptAndFetchExam = async () => {
+    if (!examId || !student) return;
     setCheckingStatus(true);
     try {
-      // 1. Busca os dados da prova primeiro para saber o título e disciplina
-      const { data: examData, error: examError } = await supabase
-        .from('bimonthly_exams')
-        .select('*')
-        .eq('id', examId)
-        .single();
+      const examDoc = await getDoc(doc(db, 'bimonthly_exams', examId));
       
-      if (examError || !examData) {
+      if (!examDoc.exists()) {
         alert("Avaliação não encontrada.");
         navigate('/');
         return;
       }
 
+      const examData = { id: examDoc.id, ...examDoc.data() } as any;
       setExam(examData);
 
-      // 2. Verifica se o aluno já enviou esta prova específica
       const examTitle = `Avaliação Bimestral: ${examData.bimester}º Bimestre`;
-      const { data: existingSub } = await supabase
-        .from('submissions')
-        .select('score')
-        .eq('student_name', student.name.trim())
-        .eq('subject', examData.subject)
-        .eq('lesson_title', examTitle.trim())
-        .maybeSingle();
-
-      if (existingSub) {
+      const subsQ = query(
+        collection(db, 'submissions'),
+        where('student_id', '==', student.id),
+        where('subject', '==', examData.subject),
+        where('lesson_title', '==', examTitle.trim())
+      );
+      
+      const subsSnapshot = await getDocs(subsQ);
+      if (!subsSnapshot.empty) {
+        const existingSub = subsSnapshot.docs[0].data();
         setScore(existingSub.score);
         setAlreadyDone(true);
         setIsFinished(true);
       }
     } catch (e) {
-      console.error(e);
+      handleFirestoreError(e, OperationType.GET, `bimonthly_exams/${examId}`);
     } finally {
       setCheckingStatus(false);
     }
@@ -95,7 +93,8 @@ export const EvaluationView: React.FC = () => {
     setScore(finalScore);
 
     try {
-      const { error } = await supabase.from('submissions').insert([{
+      await addDoc(collection(db, 'submissions'), {
+        student_id: student.id,
         student_name: student.name.trim(),
         school_class: student.school_class.trim(),
         lesson_title: `Avaliação Bimestral: ${exam.bimester}º Bimestre`.trim(),
@@ -105,13 +104,13 @@ export const EvaluationView: React.FC = () => {
            question: q.questionText,
            answer: `Opção ${answers[q.id].toUpperCase()}`
         })),
-        teacher_feedback: `Simulado automático finalizado. Acertos: ${correctCount}/${exam.questions.length}.`
-      }]);
+        teacher_feedback: `Simulado automático finalizado. Acertos: ${correctCount}/${exam.questions.length}.`,
+        submitted_at: serverTimestamp()
+      });
 
-      if (error) throw error;
       setIsFinished(true);
     } catch (err) {
-      alert("Erro ao salvar resultado. Verifique sua conexão.");
+      handleFirestoreError(err, OperationType.CREATE, 'submissions');
     } finally {
       setIsSubmitting(false);
     }

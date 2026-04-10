@@ -6,7 +6,8 @@ import { TEACHER_INFO } from '../data_admin';
 import { BookOpen, GraduationCap, ChevronRight, BrainCircuit, BellRing, Loader2 } from 'lucide-react';
 import { Subject } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -25,24 +26,33 @@ export const Home: React.FC = () => {
   const fetchExamsAndHistory = async () => {
     if (!student) return;
     
-    // Busca avaliações disponíveis
-    const { data: examData, error: examError } = await supabase
-      .from('bimonthly_exams')
-      .select('*')
-      .eq('grade', Number(student.grade))
-      .or(`school_class.is.null,school_class.eq."${student.school_class.trim()}"`)
-      .order('created_at', { ascending: false });
-
-    // Busca o que o aluno já concluiu (para filtrar)
-    const { data: subData } = await supabase
-      .from('submissions')
-      .select('lesson_title')
-      .eq('student_name', student.name.trim())
-      .like('lesson_title', 'Avaliação Bimestral%');
+    try {
+      const examsQ = query(
+        collection(db, 'bimonthly_exams'),
+        where('grade', '==', Number(student.grade)),
+        orderBy('created_at', 'desc')
+      );
       
-    if (examData) setExams(examData);
-    if (subData) setFinishedExamTitles(subData.map(s => s.lesson_title.trim()));
-    if (examError) console.error("Erro ao buscar avaliações:", examError);
+      const examsSnapshot = await getDocs(examsQ);
+      const examData = examsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((exam: any) => !exam.school_class || exam.school_class === student.school_class.trim());
+
+      const subsQ = query(
+        collection(db, 'submissions'),
+        where('student_id', '==', student.id)
+      );
+      
+      const subsSnapshot = await getDocs(subsQ);
+      const subData = subsSnapshot.docs
+        .map(doc => doc.data().lesson_title.trim())
+        .filter(title => title.startsWith('Avaliação Bimestral'));
+        
+      setExams(examData);
+      setFinishedExamTitles(subData);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, 'bimonthly_exams');
+    }
   };
 
   if (isLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin"/></div>;

@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "User profile for students",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "grade": { "type": "string" },
+        "school_class": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "grade", "school_class"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A question in the question bank",
+      "type": "object",
+      "properties": {
+        "subject": { "type": "string" },
+        "topic": { "type": "string" },
+        "type": { "type": "string", "enum": ["objective", "discursive"] },
+        "difficulty": { "type": "string", "enum": ["Fácil", "Médio", "Difícil"] },
+        "question_text": { "type": "string" },
+        "options": { "type": "object" },
+        "correct_option": { "type": "string" },
+        "explanation": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subject", "topic", "type", "difficulty", "question_text"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "A set of questions linked to a lesson",
+      "type": "object",
+      "properties": {
+        "lesson_id": { "type": "string" },
+        "title": { "type": "string" },
+        "visual_content": { "type": "object" },
+        "question_ids": { "type": "array", "items": { "type": "string" } },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["lesson_id", "title"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A student's attempt at an activity or exam",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "activity_id": { "type": "string" },
+        "exam_id": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "graded"] },
+        "score": { "type": "number" },
+        "answers": { "type": "array" },
+        "feedback": { "type": "string" },
+        "submitted_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["student_id", "status", "submitted_at"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message between student and teacher",
+      "type": "object",
+      "properties": {
+        "sender_id": { "type": "string" },
+        "receiver_id": { "type": "string" },
+        "content": { "type": "string" },
+        "subject": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sender_id", "content", "created_at"]
+    },
+    "StudentNote": {
+      "title": "StudentNote",
+      "description": "Teacher's pedagogical notes on a student",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "teacher_subject": { "type": "string" },
+        "content": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["student_id", "teacher_subject", "content", "created_at"]
+    },
+    "BimonthlyExam": {
+      "title": "BimonthlyExam",
+      "description": "A generated bimonthly evaluation",
+      "type": "object",
+      "properties": {
+        "subject": { "type": "string" },
+        "grade": { "type": "string" },
+        "bimester": { "type": "string" },
+        "topics": { "type": "array", "items": { "type": "string" } },
+        "questions": { "type": "array" },
+        "visual_content": { "type": "object" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subject", "grade", "bimester", "questions", "created_at"]
+    }
+  },
+  "firestore": {
+    "students": { "schema": "Student", "description": "Student profiles" },
+    "questions": { "schema": "Question", "description": "Question bank" },
+    "activities": { "schema": "Activity", "description": "Lesson activities" },
+    "submissions": { "schema": "Submission", "description": "Activity and exam submissions" },
+    "messages": { "schema": "Message", "description": "Chat messages" },
+    "student_notes": { "schema": "StudentNote", "description": "Pedagogical notes" },
+    "bimonthly_exams": { "schema": "BimonthlyExam", "description": "Bimonthly evaluations" }
+  }
+}

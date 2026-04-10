@@ -1,5 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 
 interface AuthContextType {
   student: any | null;
@@ -20,37 +23,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedStudent = localStorage.getItem('CHSA_STUDENT_DATA');
-    const savedTeacher = sessionStorage.getItem('CHSA_TEACHER_SESSION');
-
-    if (savedStudent) {
-      try {
-        setStudent(JSON.parse(savedStudent));
-      } catch (e) {
-        localStorage.removeItem('CHSA_STUDENT_DATA');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const studentDoc = await getDoc(doc(db, 'students', user.uid));
+          if (studentDoc.exists()) {
+            setStudent({ id: user.uid, ...studentDoc.data() });
+          } else {
+            // Se o usuário existe no Auth mas não no Firestore (ex: admin logado via Google)
+            setStudent({ id: user.uid, email: user.email, name: user.displayName || 'Usuário' });
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `students/${user.uid}`);
+        }
+      } else {
+        setStudent(null);
       }
-    }
-    
-    if (savedTeacher) {
-      setTeacherSubject(savedTeacher);
-    }
-    
-    setIsLoading(false);
+      
+      const savedTeacher = sessionStorage.getItem('CHSA_TEACHER_SESSION');
+      if (savedTeacher) {
+        setTeacherSubject(savedTeacher);
+      }
+      
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const loginStudent = (data: any) => {
-    localStorage.setItem('CHSA_STUDENT_DATA', JSON.stringify(data));
+    // No Firebase, o login é tratado pelo onAuthStateChanged
+    // Mas mantemos a função para compatibilidade se necessário passar dados extras
     setStudent(data);
   };
 
   const updateStudentData = (newData: any) => {
     const updated = { ...student, ...newData };
-    localStorage.setItem('CHSA_STUDENT_DATA', JSON.stringify(updated));
     setStudent(updated);
   };
 
-  const logoutStudent = () => {
-    localStorage.removeItem('CHSA_STUDENT_DATA');
+  const logoutStudent = async () => {
+    await signOut(auth);
     setStudent(null);
   };
 

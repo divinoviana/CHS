@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Home, History, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export const Header: React.FC = () => {
@@ -19,15 +20,17 @@ export const Header: React.FC = () => {
 
   const fetchUnreadCount = async (studentId: string) => {
     try {
-      const { data } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('sender_id', studentId)
-        .eq('is_from_teacher', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      const q = query(
+        collection(db, 'messages'),
+        where('receiver_id', '==', studentId),
+        where('is_from_teacher', '==', true),
+        orderBy('created_at', 'desc'),
+        limit(1)
+      );
       
-      if (data && data.length > 0 && location.pathname !== '/contact') {
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty && location.pathname !== '/contact') {
         setUnreadCount(1);
       } else {
         setUnreadCount(0);

@@ -2,7 +2,8 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Upload, X, ArrowLeft, Loader2, Save, User } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export const Profile: React.FC = () => {
@@ -44,17 +45,15 @@ export const Profile: React.FC = () => {
     if (!newPhoto || !student) return;
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('students')
-        .update({ photo_url: newPhoto })
-        .eq('id', student.id);
+      await updateDoc(doc(db, 'students', student.id), {
+        photo_url: newPhoto
+      });
 
-      if (error) throw error;
       updateStudentData({ photo_url: newPhoto });
       alert("Foto atualizada com sucesso!");
       setNewPhoto(null);
     } catch (err: any) {
-      alert("Erro ao salvar: " + err.message);
+      handleFirestoreError(err, OperationType.UPDATE, `students/${student.id}`);
     } finally {
       setLoading(false);
     }

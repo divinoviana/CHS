@@ -1,8 +1,15 @@
 
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Loader2, User, Lock, Camera, Upload, X, Check } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { GraduationCap, Loader2, User, Lock, Camera, Upload, X, Check, Chrome } from 'lucide-react';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider 
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export const Login: React.FC = () => {
@@ -60,6 +67,35 @@ export const Login: React.FC = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      // Verifica se o aluno já existe no Firestore
+      const studentDoc = await getDoc(doc(db, 'students', user.uid));
+      if (!studentDoc.exists()) {
+        // Se não existe, precisamos de mais dados (turma/série)
+        // Por enquanto, criamos um perfil básico e o aluno pode completar depois no Perfil
+        await setDoc(doc(db, 'students', user.uid), {
+          name: user.displayName || 'Aluno',
+          email: user.email,
+          grade: '1',
+          school_class: '13.01',
+          photo_url: user.photoURL,
+          created_at: serverTimestamp()
+        });
+      }
+      navigate('/');
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.WRITE, 'auth/google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -68,22 +104,25 @@ export const Login: React.FC = () => {
       if (isRegistering) {
         if (!photo) throw new Error("A foto é obrigatória para o cadastro.");
         
-        const { error } = await supabase.from('students').insert([{ 
-          name: formData.name, email: formData.email, password: formData.password, 
-          school_class: formData.school_class, grade: formData.grade, photo_url: photo
-        }]);
-        
-        if (error) throw error;
-        alert("Cadastro realizado! Faça login agora.");
-        setIsRegistering(false);
-      } else {
-        const { data, error } = await supabase.from('students').select('*')
-          .eq('email', formData.email).eq('password', formData.password).single();
+        // 1. Criar usuário no Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        const user = userCredential.user;
 
-        if (error || !data) throw new Error("Email ou senha incorretos.");
+        // 2. Salvar dados no Firestore
+        await setDoc(doc(db, 'students', user.uid), {
+          name: formData.name,
+          email: formData.email,
+          school_class: formData.school_class,
+          grade: formData.grade,
+          photo_url: photo,
+          created_at: serverTimestamp()
+        });
         
-        loginStudent(data);
-        setTimeout(() => navigate('/'), 100);
+        alert("Cadastro realizado com sucesso!");
+        navigate('/');
+      } else {
+        await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        navigate('/');
       }
     } catch (err: any) {
       alert(err.message);
@@ -108,6 +147,23 @@ export const Login: React.FC = () => {
           </div>
           <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{isRegistering ? 'Novo Cadastro' : 'Portal do Aluno'}</h2>
           <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Ciências Humanas - Tocantins</p>
+        </div>
+
+        <div className="mb-6">
+          <button 
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+          >
+            <Chrome className="w-5 h-5 text-tocantins-blue" />
+            Entrar com Google
+          </button>
+          
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+            <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300"><span className="bg-white px-4">ou use seu e-mail</span></div>
+          </div>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">

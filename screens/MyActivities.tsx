@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { curriculumData } from '../data';
 import { ArrowLeft, BookCheck, Star, MessageSquare, RotateCcw, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const MyActivities: React.FC = () => {
   const navigate = useNavigate();
-  // Fix: useAuth provides correctly persisted student data
   const { student, isLoading: isAuthLoading } = useAuth();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,25 +18,26 @@ export const MyActivities: React.FC = () => {
       if (!student) {
         navigate('/login');
       } else {
-        fetchMySubmissions(student.name, student.school_class);
+        fetchMySubmissions(student.id);
       }
     }
   }, [student, isAuthLoading, navigate]);
 
-  const fetchMySubmissions = async (name: string, sClass: string) => {
+  const fetchMySubmissions = async (studentId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('student_name', name.trim())
-        .eq('school_class', sClass.trim())
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const q = query(
+        collection(db, 'submissions'),
+        where('student_id', '==', studentId),
+        orderBy('submitted_at', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
       setSubmissions(data || []);
     } catch (err) {
-      console.error("Erro ao carregar atividades:", err);
+      handleFirestoreError(err, OperationType.LIST, 'submissions');
     } finally {
       setLoading(false);
     }
@@ -104,7 +105,7 @@ export const MyActivities: React.FC = () => {
                 <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
                   <div>
                     <h3 className="font-bold text-slate-800 text-lg">{sub.lesson_title}</h3>
-                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-1">Enviado em: {new Date(sub.created_at).toLocaleString('pt-BR')}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-1">Enviado em: {sub.submitted_at?.toDate ? sub.submitted_at.toDate().toLocaleString('pt-BR') : new Date(sub.submitted_at).toLocaleString('pt-BR')}</p>
                   </div>
                   <div className="bg-white px-4 py-2 rounded-2xl border-2 border-tocantins-blue font-black text-tocantins-blue text-xl shadow-sm">
                     {sub.score?.toFixed(1) || '0.0'}
