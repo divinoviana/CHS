@@ -1,0 +1,7 @@
+{
+  "name": "CHS",
+  "description": "adminstração da área",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
