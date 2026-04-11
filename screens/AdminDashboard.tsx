@@ -512,8 +512,6 @@ export const AdminDashboard: React.FC = () => {
     try {
       // In Firebase, we should use Auth to create the user, but for now I'll just add to Firestore
       // as the user might want to manage auth separately or use the Login screen logic.
-      // However, the original code used supabase.from('students').insert which in Supabase
-      // often triggers a trigger to create an auth user or vice versa.
       // In our Firebase setup, we create the student doc in Firestore.
       
       await addDoc(collection(db, 'students'), {
