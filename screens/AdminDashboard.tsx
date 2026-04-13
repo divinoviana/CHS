@@ -317,6 +317,17 @@ export const AdminDashboard: React.FC = () => {
 
   const isSuper = teacherSubject === 'SUPER_ADMIN';
 
+  const getLessonBimester = (lessonTitle: string) => {
+    for (const grade of curriculumData) {
+      for (const bimester of grade.bimesters) {
+        if (bimester.lessons.some(l => l.title === lessonTitle)) {
+          return bimester.title;
+        }
+      }
+    }
+    return 'Atividades Extras';
+  };
+
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedAccess === 'SUPER_ADMIN') {
@@ -721,6 +732,27 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [students, searchTerm, filterGrade, filterClass]);
 
+  const studentsWithSubmissions = useMemo(() => {
+    // Get unique student IDs from filtered submissions
+    const studentIds = Array.from(new Set(filteredSubmissions.map(s => s.student_id)));
+    
+    return studentIds.map(id => {
+      const student = students.find(st => st.id === id);
+      const studentSubs = filteredSubmissions.filter(s => s.student_id === id);
+      
+      return {
+        id,
+        name: student?.name || studentSubs[0]?.student_name || 'Estudante Desconhecido',
+        school_class: student?.school_class || studentSubs[0]?.school_class || 'N/A',
+        grade: student?.grade || studentSubs[0]?.school_class?.substring(0, 1) || '?',
+        photo_url: student?.photo_url,
+        submissionCount: studentSubs.length,
+        lastSubmission: studentSubs[0]?.submitted_at,
+        submissions: studentSubs
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredSubmissions, students]);
+
   const chatSessions = useMemo(() => {
     const groups: Record<string, any> = {};
     messages.forEach(m => {
@@ -993,6 +1025,60 @@ export const AdminDashboard: React.FC = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* HISTÓRICO DE ATIVIDADES */}
+                    <div className="space-y-6 pt-6 border-t">
+                        <h5 className="font-black text-slate-400 text-[10px] uppercase tracking-widest flex items-center gap-2"> <Layers size={14}/> Histórico de Atividades </h5>
+                        
+                        {(() => {
+                          const studentSubs = submissions.filter(s => s.student_id === selectedStudent.id);
+                          if (studentSubs.length === 0) return <p className="text-[10px] text-slate-400 uppercase font-bold text-center py-4">Nenhuma atividade enviada ainda.</p>;
+
+                          const bimesters = ['1º Bimestre', '2º Bimestre', '3º Bimestre', '4º Bimestre', 'Atividades Extras'];
+                          const groupedSubs: Record<string, any[]> = {};
+                          
+                          studentSubs.forEach(sub => {
+                            const bim = getLessonBimester(sub.lesson_title);
+                            if (!groupedSubs[bim]) groupedSubs[bim] = [];
+                            groupedSubs[bim].push(sub);
+                          });
+
+                          return bimesters.map(bim => {
+                            const subs = groupedSubs[bim];
+                            if (!subs || subs.length === 0) return null;
+
+                            return (
+                              <div key={bim} className="space-y-3">
+                                <h6 className="text-[9px] font-black text-tocantins-blue uppercase bg-blue-50 px-3 py-1 rounded-lg w-fit">{bim}</h6>
+                                <div className="space-y-2">
+                                  {subs.map(sub => (
+                                    <div key={sub.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center hover:border-tocantins-blue transition-colors group">
+                                      <div>
+                                        <p className="text-xs font-bold text-slate-800">{sub.lesson_title}</p>
+                                        <p className="text-[8px] text-slate-400 font-black uppercase mt-1">
+                                          {sub.submitted_at?.toDate ? sub.submitted_at.toDate().toLocaleDateString() : new Date(sub.submitted_at).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                          <p className="text-[7px] font-black text-slate-400 uppercase">Nota</p>
+                                          <p className="text-xs font-black text-tocantins-blue">{sub.score?.toFixed(1)}</p>
+                                        </div>
+                                        <button 
+                                          onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }}
+                                          className="p-2 bg-slate-100 text-slate-400 rounded-lg group-hover:bg-tocantins-blue group-hover:text-white transition-all"
+                                        >
+                                          <Eye size={14}/>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
+                    </div>
                 </div>
             </div>
         </div>
@@ -1149,25 +1235,33 @@ export const AdminDashboard: React.FC = () => {
            {/* ABAS: SUBMISSÕES */}
            {activeTab === 'submissions' && (
               <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
-                {filteredSubmissions.length === 0 ? <div className="text-center py-20 bg-white rounded-[40px] border border-dashed border-slate-200 text-slate-400 font-bold">Nenhum envio recebido.</div> : 
-                  filteredSubmissions.map(sub => (
-                    <div key={sub.id} className="bg-white rounded-[32px] border shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:shadow-md transition-all group">
-                       <div className="flex items-center gap-4 flex-1">
-                          <div className="w-14 h-14 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-md">
-                            <StudentAvatar studentId={students.find(s => s.name.trim() === sub.student_name)?.id} studentName={sub.student_name} />
+                {studentsWithSubmissions.length === 0 ? (
+                  <div className="text-center py-20 bg-white rounded-[40px] border border-dashed border-slate-200 text-slate-400 font-bold">Nenhum envio recebido.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {studentsWithSubmissions.map(st => (
+                      <button 
+                        key={st.id} 
+                        onClick={() => setSelectedStudent(st)} 
+                        className="bg-white rounded-[32px] border shadow-sm p-6 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all group text-left"
+                      >
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-md shrink-0">
+                          <StudentAvatar studentId={st.id} studentName={st.name} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-black text-slate-800 uppercase text-xs truncate">{st.name}</h3>
+                          <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">{st.school_class}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="bg-blue-50 text-tocantins-blue text-[8px] font-black px-2 py-1 rounded-lg uppercase">
+                              {st.submissionCount} {st.submissionCount === 1 ? 'Atividade' : 'Atividades'}
+                            </span>
                           </div>
-                          <div>
-                              <h3 className="font-black text-slate-800 uppercase text-sm">{sub.student_name}</h3>
-                              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{sub.school_class} • {sub.lesson_title}</p>
-                          </div>
-                       </div>
-                       <div className="flex items-center gap-6">
-                          <div className="text-right"> <p className="text-[9px] font-black text-slate-400 uppercase">Nota IA</p> <div className="bg-slate-50 px-4 py-1.5 rounded-xl font-black text-tocantins-blue text-sm shadow-inner">{sub.score?.toFixed(1)}</div> </div>
-                          <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="bg-tocantins-blue text-white p-4 rounded-2xl shadow-lg hover:shadow-blue-200 hover:-translate-y-1 transition-all flex items-center gap-2 text-xs font-black uppercase"> <Eye size={18}/> Ver e Avaliar </button>
-                       </div>
-                    </div>
-                  ))
-                }
+                        </div>
+                        <ChevronRight className="text-slate-300 group-hover:text-tocantins-blue transition-colors" size={20}/>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
            )}
 
