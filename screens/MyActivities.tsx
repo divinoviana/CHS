@@ -34,10 +34,22 @@ export const MyActivities: React.FC = () => {
       
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
       setSubmissions(data || []);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.LIST, 'submissions');
+    } catch (err: any) {
+      console.warn("Falha na query de histórico (provável falta de índice), usando fallback:", err.message);
+      try {
+        // Fallback: busca por student_id e ordena na memória
+        const qSimple = query(collection(db, 'submissions'), where('student_id', '==', studentId));
+        const querySnapshot = await getDocs(qSimple);
+        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setSubmissions(data.sort((a: any, b: any) => {
+          const t1 = a.submitted_at?.seconds || 0;
+          const t2 = b.submitted_at?.seconds || 0;
+          return t2 - t1;
+        }));
+      } catch (fallbackErr) {
+        handleFirestoreError(fallbackErr, OperationType.LIST, 'submissions');
+      }
     } finally {
       setLoading(false);
     }

@@ -400,28 +400,72 @@ export const AdminDashboard: React.FC = () => {
   const loadData = async () => {
     if (!teacherSubject) return;
     setLoading(true);
+    console.log("Iniciando carregamento de dados para:", teacherSubject);
     try {
-      const studentsQuery = query(collection(db, 'students'), orderBy('name'));
-      const studentsSnapshot = await getDocs(studentsQuery);
-      setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-      let subQ = query(collection(db, 'submissions'), orderBy('submitted_at', 'desc'));
-      if (!isSuper) {
-        subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('submitted_at', 'desc'));
+      // 1. Carregar Estudantes
+      try {
+        const studentsQuery = query(collection(db, 'students'), orderBy('name'));
+        const studentsSnapshot = await getDocs(studentsQuery);
+        setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (e) {
+        console.warn("Falha ao buscar estudantes ordenados, tentando sem ordem:", e);
+        const studentsSnapshot = await getDocs(collection(db, 'students'));
+        const data = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setStudents(data.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
       }
-      const subSnapshot = await getDocs(subQ);
-      setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-      let msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'));
-      if (!isSuper) {
-        msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'));
+      // 2. Carregar Submissões com Fallback para falta de índice
+      try {
+        let subQ;
+        if (isSuper) {
+          subQ = query(collection(db, 'submissions'), orderBy('submitted_at', 'desc'));
+        } else {
+          subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('submitted_at', 'desc'));
+        }
+        const subSnapshot = await getDocs(subQ);
+        setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (e: any) {
+        console.warn("Falha na query de submissões (provável falta de índice), usando fallback:", e.message);
+        // Fallback: busca tudo e filtra na memória
+        const subSnapshot = await getDocs(collection(db, 'submissions'));
+        let data = subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (!isSuper) {
+          data = data.filter((s: any) => s.subject === teacherSubject);
+        }
+        setSubmissions(data.sort((a: any, b: any) => {
+          const t1 = a.submitted_at?.seconds || 0;
+          const t2 = b.submitted_at?.seconds || 0;
+          return t2 - t1;
+        }));
       }
-      const msgSnapshot = await getDocs(msgQ);
-      setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+      // 3. Carregar Mensagens com Fallback
+      try {
+        let msgQ;
+        if (isSuper) {
+          msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'));
+        } else {
+          msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'));
+        }
+        const msgSnapshot = await getDocs(msgQ);
+        setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (e: any) {
+        console.warn("Falha na query de mensagens, usando fallback:", e.message);
+        const msgSnapshot = await getDocs(collection(db, 'messages'));
+        let data = msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (!isSuper) {
+          data = data.filter((m: any) => m.subject === teacherSubject);
+        }
+        setMessages(data.sort((a: any, b: any) => {
+          const t1 = a.created_at?.seconds || 0;
+          const t2 = b.created_at?.seconds || 0;
+          return t1 - t2;
+        }));
+      }
 
       loadTeacherProfile();
     } catch (e) {
-      console.error("Error loading data", e);
+      console.error("Erro crítico ao carregar dados do dashboard:", e);
     } finally { setLoading(false); }
   };
 
@@ -1185,6 +1229,34 @@ export const AdminDashboard: React.FC = () => {
            {/* ABAS: BANCO DE QUESTÕES */}
            {activeTab === 'question_bank' && (
               <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
+                 <div className="bg-white p-6 rounded-[32px] border shadow-sm mb-6">
+                    <div className="flex items-center gap-3 mb-4">
+                       <Database className="text-tocantins-blue" size={24}/>
+                       <h3 className="font-black text-slate-800 uppercase tracking-tighter">Diagnóstico do Banco de Dados</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                          <h4 className="font-bold text-slate-800 text-xs mb-2 uppercase">1. O banco está vazio?</h4>
+                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">Se você não vê atividades ou questões, clique no botão abaixo para popular o banco com o currículo padrão.</p>
+                          <button 
+                             onClick={handleSeedDatabase}
+                             disabled={loading}
+                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                          >
+                             {loading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
+                             Popular Banco Automaticamente
+                          </button>
+                       </div>
+                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                          <h4 className="font-bold text-slate-800 text-xs mb-2 uppercase">2. Erros de Permissão ou Índice?</h4>
+                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">O sistema agora possui um "fallback" que organiza os dados no navegador caso os índices do Google ainda não estejam prontos.</p>
+                          <div className="flex items-center gap-2 text-tocantins-blue font-black text-[10px] uppercase">
+                             <ShieldCheck size={14}/> Sistema de Resiliência Ativo
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
                  <div className="bg-white p-6 rounded-[32px] border shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                       <div>

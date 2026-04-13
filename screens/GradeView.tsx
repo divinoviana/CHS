@@ -39,17 +39,33 @@ export const GradeView: React.FC = () => {
     if (!student || !subjectKey) return;
     setLoadingExams(true);
     try {
-      const examsQ = query(
-        collection(db, 'bimonthly_exams'),
-        where('grade', '==', Number(id)),
-        where('subject', '==', subjectKey),
-        orderBy('created_at', 'desc')
-      );
-      
-      const examsSnapshot = await getDocs(examsQ);
-      const examsData = examsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((exam: any) => !exam.school_class || exam.school_class === student.school_class.trim());
+      let examsData: any[] = [];
+      try {
+        const examsQ = query(
+          collection(db, 'bimonthly_exams'),
+          where('grade', '==', Number(id)),
+          where('subject', '==', subjectKey),
+          orderBy('created_at', 'desc')
+        );
+        const examsSnapshot = await getDocs(examsQ);
+        examsData = examsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (e: any) {
+        console.warn("Falha na query de avaliações (provável falta de índice), usando fallback:", e.message);
+        const examsQSimple = query(
+          collection(db, 'bimonthly_exams'),
+          where('grade', '==', Number(id)),
+          where('subject', '==', subjectKey)
+        );
+        const examsSnapshot = await getDocs(examsQSimple);
+        examsData = examsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        examsData.sort((a: any, b: any) => {
+          const t1 = a.created_at?.seconds || 0;
+          const t2 = b.created_at?.seconds || 0;
+          return t2 - t1;
+        });
+      }
+
+      const filteredExams = examsData.filter((exam: any) => !exam.school_class || exam.school_class === student.school_class.trim());
 
       const subsQ = query(
         collection(db, 'submissions'),
@@ -60,7 +76,7 @@ export const GradeView: React.FC = () => {
       const subsSnapshot = await getDocs(subsQ);
       const subsData = subsSnapshot.docs.map(doc => doc.data().lesson_title.trim());
 
-      setExams(examsData || []);
+      setExams(filteredExams || []);
       setUserSubmissions(subsData || []);
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, 'bimonthly_exams');
