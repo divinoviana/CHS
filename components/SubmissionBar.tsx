@@ -39,14 +39,12 @@ export const SubmissionBar: React.FC<Props> = ({
   const [dbStatus, setDbStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const handleInternalSend = async () => {
-    if (!studentName?.trim() || submissionData.length === 0) {
+    const safeStudentName = studentName?.trim() || student?.name || 'Estudante';
+    const safeSchoolClass = schoolClass?.trim() || student?.school_class || 'N/A';
+
+    if (submissionData.length === 0) {
       alert("Por favor, responda as atividades antes de enviar.");
       return;
-    }
-
-    if (dbStatus === 'saved') {
-      // No alert/confirm in iframe, using a simple check
-      // In a real app we'd use a custom modal
     }
 
     setIsGenerating(true);
@@ -54,34 +52,50 @@ export const SubmissionBar: React.FC<Props> = ({
     
     let currentAIData = aiData;
     try {
+      // Tenta avaliar com IA se não tiver dados, mas não deixa isso travar o envio
       if (!currentAIData) {
-        const q = submissionData.map(item => ({ question: item.question, answer: item.answer }));
-        currentAIData = await evaluateActivities(lessonTitle, theory, q);
+        try {
+          const q = submissionData.map(item => ({ question: item.question, answer: item.answer }));
+          currentAIData = await evaluateActivities(lessonTitle, theory, q);
+        } catch (aiErr) {
+          console.warn("Falha na avaliação por IA, enviando sem nota automática:", aiErr);
+          currentAIData = {
+            generalComment: "Atividade enviada. Aguardando avaliação do professor.",
+            corrections: []
+          };
+        }
       }
 
       const avgScore = currentAIData?.corrections?.length > 0 
         ? currentAIData.corrections.reduce((acc, c) => acc + (Number(c.score) || 0), 0) / currentAIData.corrections.length 
         : 0;
 
+      console.log("Iniciando gravação no Firestore...");
       await addDoc(collection(db, 'submissions'), {
         student_id: student?.id || 'anonymous',
-        student_name: studentName.trim(),
-        school_class: schoolClass.trim(),
-        lesson_title: lessonTitle.trim(),
+        student_name: safeStudentName,
+        school_class: safeSchoolClass,
+        lesson_title: lessonTitle?.trim() || 'Aula sem título',
         subject: subject,
         submitted_at: serverTimestamp(),
         content: submissionData, 
         ai_feedback: currentAIData,
-        score: avgScore,
+        score: isNaN(avgScore) ? 0 : avgScore,
         status: 'completed',
         teacher_feedback: null
       });
 
+      console.log("Gravação concluída com sucesso.");
       setDbStatus('saved');
       alert(`Atividade de ${subject.toUpperCase()} enviada com sucesso!`);
     } catch (error: any) {
-      handleFirestoreError(error, OperationType.CREATE, 'submissions');
+      console.error("Erro fatal ao enviar atividade:", error);
       setDbStatus('error');
+      try {
+        handleFirestoreError(error, OperationType.CREATE, 'submissions');
+      } catch (e) {
+        // Ignora re-throw para manter estado de erro no botão
+      }
     } finally {
       setIsGenerating(false);
     }

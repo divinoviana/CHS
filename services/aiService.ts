@@ -100,10 +100,9 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
 };
 
 const getAIClient = () => {
-  // Tenta pegar a chave do VITE_GEMINI_API_KEY (para Vercel/Netlify) ou das variáveis de ambiente padrão
-  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("Erro de Configuração: API_KEY não detectada. Certifique-se de que a chave VITE_GEMINI_API_KEY está configurada no ambiente.");
+    throw new Error("Erro de Configuração: API_KEY não detectada.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -495,7 +494,7 @@ export const evaluateActivities = async (
     No 'generalComment', faça um balanço geral do desempenho do aluno nesta atividade, destacando pontos fortes e fracos.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         systemInstruction: "Você é um tutor acadêmico experiente. Forneça feedbacks construtivos, detalhados e que estimulem o aprendizado do aluno.",
