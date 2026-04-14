@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
 import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
@@ -97,9 +97,18 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchSavedActivities = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, 'activities'));
-      const data = querySnapshot.docs.map(doc => doc.data().lesson_id);
-      setSavedActivities(data);
+      let q = query(collection(db, 'activities'));
+      // Se não for super admin, filtra as atividades pela disciplina do professor
+      // Nota: Precisamos garantir que o documento da atividade tenha o campo 'subject'
+      const querySnapshot = await getDocs(q);
+      let data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      
+      if (!isSuper && teacherSubject) {
+        // Filtro em memória para garantir que funcione mesmo sem índice composto inicialmente
+        data = data.filter(act => act.subject === teacherSubject || act.lesson_id.includes(`-${teacherSubject.substring(0, 3)}-`));
+      }
+      
+      setSavedActivities(data.map(act => act.lesson_id));
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, 'activities');
     }
@@ -107,12 +116,33 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchQuestionBank = async () => {
     try {
-      const q = query(collection(db, 'questions'), orderBy('created_at', 'desc'));
+      let q = query(collection(db, 'questions'), orderBy('created_at', 'desc'));
       const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      
+      if (!isSuper && teacherSubject) {
+        data = data.filter(q => q.subject === teacherSubject);
+      }
+      
       setQuestionBank(data);
     } catch (e) {
-      handleFirestoreError(e, OperationType.LIST, 'questions');
+      console.warn("Falha ao buscar banco de questões ordenado, tentando fallback:", e);
+      try {
+        const querySnapshot = await getDocs(collection(db, 'questions'));
+        let data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+        
+        if (!isSuper && teacherSubject) {
+          data = data.filter(q => q.subject === teacherSubject);
+        }
+        
+        setQuestionBank(data.sort((a, b) => {
+          const t1 = a.created_at?.seconds || 0;
+          const t2 = b.created_at?.seconds || 0;
+          return t2 - t1;
+        }));
+      } catch (innerE) {
+        handleFirestoreError(innerE, OperationType.LIST, 'questions');
+      }
     }
   };
 
@@ -148,6 +178,7 @@ export const AdminDashboard: React.FC = () => {
           await addDoc(collection(db, 'activities'), {
             lesson_id: lesson.id, 
             title: `Atividade: ${lesson.title}`,
+            subject: lesson.subject,
             visual_content: activity.visualContent || null,
             created_at: serverTimestamp()
           });
@@ -225,6 +256,7 @@ export const AdminDashboard: React.FC = () => {
       await addDoc(collection(db, 'activities'), {
         lesson_id: lesson.id, 
         title: `Atividade: ${lesson.title}`,
+        subject: lesson.subject,
         visual_content: activity.visualContent,
         created_at: serverTimestamp()
       });
@@ -372,10 +404,17 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     if (selectedAccess === 'SUPER_ADMIN') {
         if (email.trim() === 'divinoviana@gmail.com' && pass.trim() === '3614526312') {
+            try {
+              // Tenta autenticar no Firebase Auth para garantir permissões de banco
+              await signInWithEmailAndPassword(auth, email.trim(), pass.trim());
+            } catch (authErr) {
+              console.warn("Aviso: Login local bem-sucedido, mas falha na autenticação Firebase Auth.", authErr);
+            }
             loginTeacher('SUPER_ADMIN');
             setActiveTab('submissions');
         } else {
@@ -389,6 +428,7 @@ export const AdminDashboard: React.FC = () => {
           alert("Senha incorreta.");
         }
     }
+    setLoading(false);
   };
 
   const handleViewLessonPlan = async (lesson: any, gradeId: number) => {
