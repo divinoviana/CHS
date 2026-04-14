@@ -100,9 +100,14 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
 };
 
 const getAIClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Em ambientes Vite/Vercel, process.env pode não estar disponível no browser.
+  // Tentamos buscar de múltiplas fontes comuns.
+  const apiKey = process.env.GEMINI_API_KEY || 
+                 (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+                 (window as any).GEMINI_API_KEY;
+
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("Erro de Configuração: API_KEY não detectada.");
+    throw new Error("Configuração Ausente: A chave GEMINI_API_KEY não foi encontrada no ambiente. Se você estiver usando o Vercel, certifique-se de adicionar VITE_GEMINI_API_KEY às variáveis de ambiente.");
   }
   return new GoogleGenAI({ apiKey });
 };

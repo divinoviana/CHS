@@ -120,6 +120,10 @@ export const AdminDashboard: React.FC = () => {
     
     setLoading(true);
     try {
+      // Garantir que temos a lista atualizada de atividades já salvas
+      const currentSavedSnapshot = await getDocs(collection(db, 'activities'));
+      const currentSavedIds = currentSavedSnapshot.docs.map(doc => doc.data().lesson_id);
+      
       const { generateFallbackActivity } = await import('../services/aiService');
       
       const allLessons: any[] = [];
@@ -132,56 +136,65 @@ export const AdminDashboard: React.FC = () => {
       });
 
       let addedCount = 0;
+      let errorCount = 0;
       
       for (const lesson of allLessons) {
-        if (savedActivities.includes(lesson.id)) continue; 
+        if (currentSavedIds.includes(lesson.id)) continue; 
         
-        const activity = generateFallbackActivity(lesson.title, lesson.theory, lesson.questions);
-        
-        const actRef = await addDoc(collection(db, 'activities'), {
-          lesson_id: lesson.id, 
-          title: `Atividade: ${lesson.title}`,
-          visual_content: activity.visualContent,
-          created_at: serverTimestamp()
-        });
-
-        const questionsToInsert = [
-          ...activity.objectives.map(q => ({
-            subject: lesson.subject,
-            topic: lesson.title,
-            type: 'objective',
-            difficulty: 'Médio',
-            question_text: q.question,
-            options: q.options,
-            correct_option: q.correctOption,
-            explanation: '',
+        try {
+          const activity = generateFallbackActivity(lesson.title, lesson.theory, lesson.questions);
+          
+          await addDoc(collection(db, 'activities'), {
+            lesson_id: lesson.id, 
+            title: `Atividade: ${lesson.title}`,
+            visual_content: activity.visualContent || null,
             created_at: serverTimestamp()
-          })),
-          ...activity.discursives.map(q => ({
-            subject: lesson.subject,
-            topic: lesson.title,
-            type: 'discursive',
-            difficulty: 'Médio',
-            question_text: q.question,
-            created_at: serverTimestamp()
-          }))
-        ];
+          });
 
-        for (const q of questionsToInsert) {
-          const qRef = await addDoc(collection(db, 'questions'), q);
-          // In Firestore we can just link by ID in the activity document or a subcollection
-          // For simplicity with the current structure, I'll just add them to the question bank
+          const questionsToInsert = [
+            ...activity.objectives.map(q => ({
+              subject: lesson.subject,
+              topic: lesson.title,
+              type: 'objective',
+              difficulty: 'Médio',
+              question_text: q.question,
+              options: q.options,
+              correct_option: q.correctOption,
+              explanation: '',
+              created_at: serverTimestamp()
+            })),
+            ...activity.discursives.map(q => ({
+              subject: lesson.subject,
+              topic: lesson.title,
+              type: 'discursive',
+              difficulty: 'Médio',
+              question_text: q.question,
+              created_at: serverTimestamp()
+            }))
+          ];
+
+          for (const q of questionsToInsert) {
+            await addDoc(collection(db, 'questions'), q);
+          }
+          
+          addedCount++;
+        } catch (innerError) {
+          console.error(`Erro ao salvar aula ${lesson.id}:`, innerError);
+          errorCount++;
         }
-        
-        addedCount++;
       }
       
-      alert(`Processo concluído! ${addedCount} atividades foram geradas e salvas no banco de dados.`);
+      if (errorCount > 0) {
+        alert(`Processo finalizado com avisos. ${addedCount} atividades criadas, mas ${errorCount} falharam. Verifique as permissões do banco.`);
+      } else {
+        alert(`Sucesso! ${addedCount} atividades foram geradas e salvas.`);
+      }
+      
       fetchSavedActivities();
       fetchQuestionBank();
-    } catch (e) {
+    } catch (e: any) {
       console.error("Erro no seed:", e);
-      alert("Ocorreu um erro ao gerar as atividades.");
+      alert(`Ocorreu um erro ao processar: ${e.message || 'Erro desconhecido'}`);
     } finally {
       setLoading(false);
     }
@@ -423,7 +436,7 @@ export const AdminDashboard: React.FC = () => {
           subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('submitted_at', 'desc'));
         }
         const subSnapshot = await getDocs(subQ);
-        setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
       } catch (e: any) {
         console.warn("Falha na query de submissões (provável falta de índice), usando fallback:", e.message);
         // Fallback: busca tudo e filtra na memória
@@ -448,7 +461,7 @@ export const AdminDashboard: React.FC = () => {
           msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'));
         }
         const msgSnapshot = await getDocs(msgQ);
-        setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
       } catch (e: any) {
         console.warn("Falha na query de mensagens, usando fallback:", e.message);
         const msgSnapshot = await getDocs(collection(db, 'messages'));
@@ -1248,10 +1261,16 @@ export const AdminDashboard: React.FC = () => {
                           </button>
                        </div>
                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <h4 className="font-bold text-slate-800 text-xs mb-2 uppercase">2. Erros de Permissão ou Índice?</h4>
-                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">O sistema agora possui um "fallback" que organiza os dados no navegador caso os índices do Google ainda não estejam prontos.</p>
-                          <div className="flex items-center gap-2 text-tocantins-blue font-black text-[10px] uppercase">
-                             <ShieldCheck size={14}/> Sistema de Resiliência Ativo
+                          <h4 className="font-bold text-slate-800 text-xs mb-2 uppercase">2. Erros de Permissão ou IA?</h4>
+                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">Verifique se sua chave API está ativa e se você tem permissões de administrador.</p>
+                          <div className="space-y-2">
+                             <div className="flex items-center gap-2 text-tocantins-blue font-black text-[10px] uppercase">
+                                <ShieldCheck size={14}/> Sistema de Resiliência Ativo
+                             </div>
+                             <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                {process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? <CheckCircle2 size={14}/> : <AlertTriangle size={14}/>}
+                                {process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? 'Chave API Detectada' : 'Chave API Não Encontrada'}
+                             </div>
                           </div>
                        </div>
                     </div>
