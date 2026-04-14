@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
 import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
 import { Subject } from '../types';
@@ -12,7 +13,7 @@ import {
   MessageSquare, Loader2, X, Save, 
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
-  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
+  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2, Chrome,
   Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers, Database
 } from 'lucide-react';
 
@@ -339,6 +340,36 @@ export const AdminDashboard: React.FC = () => {
       }
     }
     return 'Atividades Extras';
+  };
+
+  const handleGoogleAdminLogin = async () => {
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      if (user.email === 'divinoviana@gmail.com') {
+        loginTeacher('SUPER_ADMIN');
+        setActiveTab('submissions');
+      } else {
+        // Verifica se tem papel de admin no Firestore
+        const studentDoc = await getDoc(doc(db, 'students', user.uid));
+        if (studentDoc.exists() && studentDoc.data()?.role === 'admin') {
+          loginTeacher('SUPER_ADMIN');
+          setActiveTab('submissions');
+        } else {
+          alert("Este e-mail não possui permissões administrativas.");
+          await signOut(auth);
+        }
+      }
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user') {
+        alert("Erro no login Google: " + err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAdminLogin = (e: React.FormEvent) => {
@@ -843,14 +874,30 @@ export const AdminDashboard: React.FC = () => {
               {Object.entries(subjectsInfo).map(([k, v]) => <option key={k} value={k}>Professor de {v.name}</option>)}
             </select>
             {selectedAccess === 'SUPER_ADMIN' && (
-              <input 
-                required 
-                type="email" 
-                placeholder="Email Administrativo" 
-                className="w-full p-4 border rounded-2xl bg-slate-50 outline-none" 
-                value={email} 
-                onChange={e => setEmail(e.target.value)} 
-              />
+              <div className="space-y-4">
+                <button 
+                  type="button" 
+                  onClick={handleGoogleAdminLogin}
+                  className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+                >
+                  <Chrome className="w-5 h-5 text-tocantins-blue" />
+                  Entrar com Google (Recomendado)
+                </button>
+                
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300"><span className="bg-white px-4">ou use senha</span></div>
+                </div>
+
+                <input 
+                  required 
+                  type="email" 
+                  placeholder="Email Administrativo" 
+                  className="w-full p-4 border rounded-2xl bg-slate-50 outline-none" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                />
+              </div>
             )}
             <input 
               required 
