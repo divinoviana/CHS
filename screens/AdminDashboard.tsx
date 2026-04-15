@@ -583,10 +583,12 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (!teacherSubject || isAuthLoading) return;
     
-    // Se for Super Admin, precisamos estar autenticados no Firebase para ler mensagens
-    // Caso contrário, as regras de segurança bloquearão a leitura de toda a coleção
-    if (isSuper && !authUser) {
-        console.log("Aguardando autenticação Firebase para carregar mensagens do Super Admin...");
+    // Precisamos estar autenticados no Firebase para ler mensagens
+    if (!authUser) {
+        if (!isSuper) {
+            signInAnonymously(auth).catch(err => console.error("Erro ao re-autenticar anonimamente para mensagens:", err));
+        }
+        console.log("Aguardando autenticação Firebase para carregar mensagens...");
         return;
     }
     
@@ -612,8 +614,13 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     if (teacherSubject && !isAuthLoading) { 
-      // Se for Super Admin, esperamos o authUser estar pronto
-      if (isSuper && !authUser) return;
+      // Precisamos do authUser pronto para evitar erros de permissão
+      if (!authUser) {
+        if (!isSuper) {
+          signInAnonymously(auth).catch(err => console.error("Erro ao re-autenticar anonimamente para loadData:", err));
+        }
+        return;
+      }
       loadData(); 
     }
   }, [teacherSubject, isAuthLoading, authUser, isSuper]);
