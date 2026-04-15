@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
-import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
+import { subjectsInfo, ADMIN_PASSWORDS, TEACHER_EMAILS, curriculumData } from '../data';
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -424,12 +424,16 @@ export const AdminDashboard: React.FC = () => {
     } else {
         if (pass.trim() === ADMIN_PASSWORDS[selectedAccess as Subject]) {
           try {
-            // Garante que o professor esteja autenticado no Firebase para ler os dados
+            // Agora usamos login por e-mail para os professores para que as regras do Firestore
+            // os reconheçam como administradores e permitam a sincronização do banco.
+            const teacherEmail = TEACHER_EMAILS[selectedAccess as Subject];
+            await signInWithEmailAndPassword(auth, teacherEmail, pass.trim());
+          } catch (authErr: any) {
+            console.warn("Aviso: Falha na autenticação por e-mail para o professor. Tentando anônimo como fallback.", authErr);
+            // Fallback para anônimo se o usuário ainda não tiver sido criado no console
             if (!auth.currentUser) {
               await signInAnonymously(auth);
             }
-          } catch (authErr) {
-            console.warn("Aviso: Falha na autenticação anônima para o professor.", authErr);
           }
           loginTeacher(selectedAccess);
           setActiveTab('submissions');

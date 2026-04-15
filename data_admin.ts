@@ -8,6 +8,13 @@ export const ADMIN_PASSWORDS: Record<Subject, string> = {
   sociologia: 'fred@fred2026'
 };
 
+export const TEACHER_EMAILS: Record<Subject, string> = {
+  filosofia: 'filosofia@frederico.edu.br',
+  geografia: 'geografia@frederico.edu.br',
+  historia: 'historia@frederico.edu.br',
+  sociologia: 'sociologia@frederico.edu.br'
+};
+
 export const TEACHER_INFO = {
   name: "Prof. Me. Divino Ribeiro Viana",
   role: "Docente Responsável",

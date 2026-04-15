@@ -15,7 +15,13 @@ service cloud.firestore {
         (
           (exists(/databases/$(database)/documents/students/$(request.auth.uid)) && 
            get(/databases/$(database)/documents/students/$(request.auth.uid)).data.role == 'admin') ||
-          (request.auth.token.email == "divinoviana@gmail.com" && request.auth.token.email_verified == true)
+          (request.auth.token.email == "divinoviana@gmail.com" && request.auth.token.email_verified == true) ||
+          request.auth.token.email in [
+            'filosofia@frederico.edu.br',
+            'geografia@frederico.edu.br',
+            'historia@frederico.edu.br',
+            'sociologia@frederico.edu.br'
+          ]
         );
     }
 
