@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
 import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
@@ -105,7 +105,8 @@ export const AdminDashboard: React.FC = () => {
       
       if (!isSuper && teacherSubject) {
         // Filtro em memória para garantir que funcione mesmo sem índice composto inicialmente
-        data = data.filter(act => act.subject === teacherSubject || act.lesson_id.includes(`-${teacherSubject.substring(0, 3)}-`));
+        const subCode = teacherSubject === 'filosofia' ? 'phi' : teacherSubject.substring(0, 3);
+        data = data.filter(act => act.subject === teacherSubject || act.lesson_id.includes(`-${subCode}-`));
       }
       
       setSavedActivities(data.map(act => act.lesson_id));
@@ -422,6 +423,14 @@ export const AdminDashboard: React.FC = () => {
         }
     } else {
         if (pass.trim() === ADMIN_PASSWORDS[selectedAccess as Subject]) {
+          try {
+            // Garante que o professor esteja autenticado no Firebase para ler os dados
+            if (!auth.currentUser) {
+              await signInAnonymously(auth);
+            }
+          } catch (authErr) {
+            console.warn("Aviso: Falha na autenticação anônima para o professor.", authErr);
+          }
           loginTeacher(selectedAccess);
           setActiveTab('submissions');
         } else {
