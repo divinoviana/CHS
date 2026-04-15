@@ -68,7 +68,7 @@ const StudentAvatar: React.FC<{ studentId?: string; studentName: string }> = ({ 
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { teacherSubject, loginTeacher, logoutTeacher } = useAuth();
+  const { teacherSubject, loginTeacher, logoutTeacher, isLoading: isAuthLoading, student: authUser } = useAuth();
   
   const [pass, setPass] = useState('');
   const [email, setEmail] = useState(''); 
@@ -510,17 +510,25 @@ export const AdminDashboard: React.FC = () => {
         setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
       } catch (e: any) {
         console.warn("Falha na query de submissões (provável falta de índice), usando fallback:", e.message);
-        // Fallback: busca tudo e filtra na memória
-        const subSnapshot = await getDocs(collection(db, 'submissions'));
-        let data = subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (!isSuper) {
-          data = data.filter((s: any) => s.subject === teacherSubject);
+        try {
+          // Fallback: busca filtrado por disciplina se não for super
+          let fallbackQ = collection(db, 'submissions') as any;
+          if (!isSuper) {
+            fallbackQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject));
+          } else if (!authUser) {
+             return;
+          }
+          
+          const subSnapshot = await getDocs(fallbackQ);
+          let data = subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+          setSubmissions(data.sort((a: any, b: any) => {
+            const t1 = a.submitted_at?.seconds || 0;
+            const t2 = b.submitted_at?.seconds || 0;
+            return t2 - t1;
+          }));
+        } catch (innerE) {
+          console.error("Erro no fallback de submissões:", innerE);
         }
-        setSubmissions(data.sort((a: any, b: any) => {
-          const t1 = a.submitted_at?.seconds || 0;
-          const t2 = b.submitted_at?.seconds || 0;
-          return t2 - t1;
-        }));
       }
 
       // 3. Carregar Mensagens com Fallback
@@ -535,16 +543,26 @@ export const AdminDashboard: React.FC = () => {
         setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
       } catch (e: any) {
         console.warn("Falha na query de mensagens, usando fallback:", e.message);
-        const msgSnapshot = await getDocs(collection(db, 'messages'));
-        let data = msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (!isSuper) {
-          data = data.filter((m: any) => m.subject === teacherSubject);
+        try {
+          // Fallback: busca filtrado por disciplina se não for super
+          let fallbackQ = collection(db, 'messages') as any;
+          if (!isSuper) {
+            fallbackQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject));
+          } else if (!authUser) {
+             // Se for super mas não logado, não adianta tentar buscar tudo
+             return;
+          }
+          
+          const msgSnapshot = await getDocs(fallbackQ);
+          let data = msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+          setMessages(data.sort((a: any, b: any) => {
+            const t1 = a.created_at?.seconds || 0;
+            const t2 = b.created_at?.seconds || 0;
+            return t1 - t2;
+          }));
+        } catch (innerE) {
+          console.error("Erro no fallback de mensagens:", innerE);
         }
-        setMessages(data.sort((a: any, b: any) => {
-          const t1 = a.created_at?.seconds || 0;
-          const t2 = b.created_at?.seconds || 0;
-          return t1 - t2;
-        }));
       }
 
       loadTeacherProfile();
@@ -554,7 +572,14 @@ export const AdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!teacherSubject) return;
+    if (!teacherSubject || isAuthLoading) return;
+    
+    // Se for Super Admin, precisamos estar autenticados no Firebase para ler mensagens
+    // Caso contrário, as regras de segurança bloquearão a leitura de toda a coleção
+    if (isSuper && !authUser) {
+        console.log("Aguardando autenticação Firebase para carregar mensagens do Super Admin...");
+        return;
+    }
     
     let msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'));
     if (!isSuper) {
@@ -565,15 +590,24 @@ export const AdminDashboard: React.FC = () => {
       const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMessages(newMessages);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'messages');
+      // Se for erro de permissão durante a inicialização/troca de conta, apenas logamos no console
+      if (error.message.includes('permissions')) {
+        console.warn("Aviso: Sem permissão para ouvir mensagens em tempo real no momento.", error.message);
+      } else {
+        handleFirestoreError(error, OperationType.LIST, 'messages');
+      }
     });
 
     return () => unsubscribe();
-  }, [teacherSubject, isSuper]);
+  }, [teacherSubject, isSuper, authUser, isAuthLoading]);
 
   useEffect(() => {
-    if (teacherSubject) { loadData(); }
-  }, [teacherSubject]);
+    if (teacherSubject && !isAuthLoading) { 
+      // Se for Super Admin, esperamos o authUser estar pronto
+      if (isSuper && !authUser) return;
+      loadData(); 
+    }
+  }, [teacherSubject, isAuthLoading, authUser, isSuper]);
 
   useEffect(() => {
     if (selectedStudent && teacherSubject) { fetchStudentNotes(selectedStudent.id); }
@@ -714,7 +748,8 @@ export const AdminDashboard: React.FC = () => {
       const subjectToUse = isSuper ? (lastStudentMsg?.subject || 'filosofia') : teacherSubject;
 
       await addDoc(collection(db, 'messages'), {
-        sender_id: selectedChatStudentId,
+        sender_id: auth.currentUser?.uid || `teacher_${teacherSubject}`,
+        receiver_id: selectedChatStudentId,
         sender_name: isSuper ? 'Gestão Geral' : `Prof. de ${subjectsInfo[teacherSubject as Subject]?.name}`,
         content: teacherReplyText.trim(),
         is_from_teacher: true,
