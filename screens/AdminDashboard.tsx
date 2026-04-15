@@ -78,6 +78,7 @@ export const AdminDashboard: React.FC = () => {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports' | 'lessons_list' | 'teacher_profile' | 'question_bank'>('submissions');
   
@@ -408,13 +409,15 @@ export const AdminDashboard: React.FC = () => {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setAuthError(null);
     if (selectedAccess === 'SUPER_ADMIN') {
         if (email.trim() === 'divinoviana@gmail.com' && pass.trim() === '3614526312') {
             try {
               // Tenta autenticar no Firebase Auth para garantir permissões de banco
               await signInWithEmailAndPassword(auth, email.trim(), pass.trim());
-            } catch (authErr) {
+            } catch (authErr: any) {
               console.warn("Aviso: Login local bem-sucedido, mas falha na autenticação Firebase Auth.", authErr);
+              setAuthError("Erro de autenticação no Firebase. Verifique se o usuário existe no console.");
             }
             loginTeacher('SUPER_ADMIN');
             setActiveTab('submissions');
@@ -428,15 +431,17 @@ export const AdminDashboard: React.FC = () => {
             // os reconheçam como administradores e permitam a sincronização do banco.
             const teacherEmail = TEACHER_EMAILS[selectedAccess as Subject];
             await signInWithEmailAndPassword(auth, teacherEmail, pass.trim());
+            loginTeacher(selectedAccess);
+            setActiveTab('submissions');
           } catch (authErr: any) {
-            console.warn("Aviso: Falha na autenticação por e-mail para o professor. Tentando anônimo como fallback.", authErr);
-            // Fallback para anônimo se o usuário ainda não tiver sido criado no console
-            if (!auth.currentUser) {
-              await signInAnonymously(auth);
-            }
+            console.error("Erro na autenticação do professor:", authErr);
+            setAuthError(`Erro: O usuário ${TEACHER_EMAILS[selectedAccess as Subject]} não foi encontrado ou a senha está incorreta no Firebase. Por favor, registre este e-mail no Console do Firebase.`);
+            
+            // Não bloqueamos a entrada no dashboard para permitir visualização offline/cache, 
+            // mas o usuário terá erros de permissão se tentar acessar o banco sem estar logado.
+            loginTeacher(selectedAccess);
+            setActiveTab('submissions');
           }
-          loginTeacher(selectedAccess);
-          setActiveTab('submissions');
         } else {
           alert("Senha incorreta.");
         }
@@ -589,9 +594,6 @@ export const AdminDashboard: React.FC = () => {
     
     // Precisamos estar autenticados no Firebase para ler mensagens
     if (!authUser) {
-        if (!isSuper) {
-            signInAnonymously(auth).catch(err => console.error("Erro ao re-autenticar anonimamente para mensagens:", err));
-        }
         console.log("Aguardando autenticação Firebase para carregar mensagens...");
         return;
     }
@@ -620,9 +622,6 @@ export const AdminDashboard: React.FC = () => {
     if (teacherSubject && !isAuthLoading) { 
       // Precisamos do authUser pronto para evitar erros de permissão
       if (!authUser) {
-        if (!isSuper) {
-          signInAnonymously(auth).catch(err => console.error("Erro ao re-autenticar anonimamente para loadData:", err));
-        }
         return;
       }
       loadData(); 
@@ -963,6 +962,17 @@ export const AdminDashboard: React.FC = () => {
              </div>
              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Acesso Docente</h2>
           </div>
+
+          {authError && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top">
+               <AlertTriangle className="text-amber-600 shrink-0" size={20}/>
+               <div className="text-[10px] text-amber-800 leading-relaxed">
+                  <p className="font-bold mb-1 uppercase tracking-wider">Aviso de Autenticação</p>
+                  {authError}
+               </div>
+            </div>
+          )}
+
           <form onSubmit={handleAdminLogin} className="space-y-4">
             <select className="w-full p-4 border rounded-2xl bg-slate-50 font-bold text-slate-700 outline-none" value={selectedAccess} onChange={e => setSelectedAccess(e.target.value as any)}>
               <option value="SUPER_ADMIN">👑 Gestão Geral (Super Admin)</option>
