@@ -234,6 +234,30 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleClearDatabase = async () => {
+    if (!confirm("ATENÇÃO: Isso irá apagar TODAS as questões e atividades salvas no banco de dados. Esta ação não pode ser desfeita. Deseja continuar?")) return;
+    
+    setLoading(true);
+    try {
+      const qSnapshot = await getDocs(collection(db, 'questions'));
+      const aSnapshot = await getDocs(collection(db, 'activities'));
+      
+      const deletePromises = [
+        ...qSnapshot.docs.map(d => deleteDoc(doc(db, 'questions', d.id))),
+        ...aSnapshot.docs.map(d => deleteDoc(doc(db, 'activities', d.id)))
+      ];
+      
+      await Promise.all(deletePromises);
+      alert("Banco de dados limpo com sucesso!");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'database');
+    } finally {
+      setLoading(false);
+      fetchSavedActivities();
+      fetchQuestionBank();
+    }
+  };
+
   const handleGenerateAndSaveActivity = async (lesson: any) => {
     if (isGeneratingActivityFor) return;
     setIsGeneratingActivityFor(lesson.id);
@@ -410,37 +434,46 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setAuthError(null);
+
+    // Primeiro, deslogamos qualquer usuário atual para garantir que o novo login seja limpo
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn("Erro ao deslogar usuário anterior:", e);
+    }
+
     if (selectedAccess === 'SUPER_ADMIN') {
         if (email.trim() === 'divinoviana@gmail.com' && pass.trim() === '3614526312') {
             try {
               // Tenta autenticar no Firebase Auth para garantir permissões de banco
               await signInWithEmailAndPassword(auth, email.trim(), pass.trim());
+              loginTeacher('SUPER_ADMIN');
+              setActiveTab('submissions');
             } catch (authErr: any) {
-              console.warn("Aviso: Login local bem-sucedido, mas falha na autenticação Firebase Auth.", authErr);
-              setAuthError("Erro de autenticação no Firebase. Verifique se o usuário existe no console.");
+              console.error("Erro na autenticação Firebase do Super Admin:", authErr);
+              setAuthError("Erro de autenticação no Firebase. Verifique se o usuário 'divinoviana@gmail.com' está cadastrado no console e se a senha no console é a mesma usada aqui.");
+              // No caso do Super Admin, permitimos entrar mesmo com erro de auth para que ele veja a interface,
+              // mas avisamos que o banco pode falhar.
+              loginTeacher('SUPER_ADMIN');
+              setActiveTab('submissions');
             }
-            loginTeacher('SUPER_ADMIN');
-            setActiveTab('submissions');
         } else {
             alert("Credenciais de Super Admin incorretas.");
         }
     } else {
         if (pass.trim() === ADMIN_PASSWORDS[selectedAccess as Subject]) {
           try {
-            // Agora usamos login por e-mail para os professores para que as regras do Firestore
-            // os reconheçam como administradores e permitam a sincronização do banco.
             const teacherEmail = TEACHER_EMAILS[selectedAccess as Subject];
             await signInWithEmailAndPassword(auth, teacherEmail, pass.trim());
             loginTeacher(selectedAccess);
             setActiveTab('submissions');
           } catch (authErr: any) {
             console.error("Erro na autenticação do professor:", authErr);
-            setAuthError(`Erro: O usuário ${TEACHER_EMAILS[selectedAccess as Subject]} não foi encontrado ou a senha está incorreta no Firebase. Por favor, registre este e-mail no Console do Firebase.`);
+            setAuthError(`Erro de Permissão: O e-mail ${TEACHER_EMAILS[selectedAccess as Subject]} não está autenticado no Firebase. 
+            Acesse o Console do Firebase > Authentication e adicione este e-mail com a senha padrão.`);
             
-            // Não bloqueamos a entrada no dashboard para permitir visualização offline/cache, 
-            // mas o usuário terá erros de permissão se tentar acessar o banco sem estar logado.
-            loginTeacher(selectedAccess);
-            setActiveTab('submissions');
+            // Para professores, NÃO permitimos entrar se a auth falhar, pois eles terão erros de permissão constantes.
+            // loginTeacher(selectedAccess); // Removido para evitar confusão
           }
         } else {
           alert("Senha incorreta.");
@@ -1410,6 +1443,14 @@ export const AdminDashboard: React.FC = () => {
                           >
                              {loading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
                              Popular Banco Automaticamente
+                          </button>
+                          <button 
+                             onClick={handleClearDatabase}
+                             disabled={loading}
+                             className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                          >
+                             {loading ? <Loader2 className="animate-spin" size={14}/> : <Trash2 size={14}/>}
+                             Apagar Todas as Questões
                           </button>
                        </div>
                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">

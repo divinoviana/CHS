@@ -259,17 +259,25 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
       required: ["objectives", "discursives"]
     };
 
-    const prompt = `Atue como um professor especialista em Ciências Humanas. Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 3000)}", crie uma atividade aprofundada, analítica e desafiadora para alunos do Ensino Médio.
+    const prompt = `Atue como um Professor Doutor e Especialista em Ciências Humanas (Filosofia, História, Geografia e Sociologia). 
+    Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 3000)}", crie uma atividade EXTREMAMENTE aprofundada, analítica e intelectualmente desafiadora para alunos do Ensino Médio.
     
     A atividade deve conter:
-    1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E). As questões NÃO devem ser de mera memorização. Elas devem exigir interpretação de texto, análise crítica, relação com o contexto histórico/social atual e raciocínio lógico. Use situações-problema, casos práticos ou trechos de textos de apoio fictícios nas questões.
-    2. EXATAMENTE 2 questões discursivas (abertas) complexas que exijam reflexão crítica profunda, argumentação embasada e conexão do tema com a realidade contemporânea do aluno.
-    3. UM CONTEÚDO VISUAL COMPLEMENTAR (opcional, mas recomendado se o tema permitir):
-       - Se for 'chart': Gere dados para um gráfico (bar, line ou pie) com 'title' e 'data' (array de {name, value}).
-       - Se for 'table': Gere uma tabela com 'title', 'headers' e 'rows'.
-       - Se for 'crossword': Gere uma palavra cruzada com 'grid' (array 2D de letras/espaços) e 'clues' (across/down com number, clue, answer, row, col).
+    1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E). As questões DEVEM ser de alto nível, exigindo:
+       - Interpretação de textos complexos ou fontes primárias/secundárias.
+       - Análise crítica de fenômenos sociais, históricos ou geográficos.
+       - Relação interdisciplinar entre as áreas de Ciências Humanas.
+       - Uso de situações-problema que fujam do óbvio e exijam raciocínio lógico-formal.
+    2. EXATAMENTE 2 questões discursivas (abertas) de nível acadêmico, que exijam:
+       - Reflexão crítica profunda e argumentação estruturada.
+       - Conexão do tema com dilemas éticos, políticos ou sociais da contemporaneidade.
+       - Capacidade de síntese e avaliação de diferentes perspectivas teóricas.
+    3. UM CONTEÚDO VISUAL COMPLEMENTAR (opcional, mas recomendado):
+       - Se for 'chart': Dados estatísticos reais ou simulados para análise sociológica/geográfica.
+       - Se for 'table': Comparativos conceituais ou dados históricos.
+       - Se for 'crossword': Termos técnicos e conceitos fundamentais aprofundados.
     
-    As questões devem ter o nível de exigência do ENEM (Exame Nacional do Ensino Médio), sendo muito bem elaboradas, contextualizadas e aprofundadas.`;
+    As questões devem seguir o rigor e a sofisticação das melhores avaliações do país (ENEM de alto nível, vestibulares de excelência), sendo densas, contextualizadas e que fujam de repetições genéricas.`;
 
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
@@ -277,7 +285,7 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
         model: "gemini-3.1-pro-preview",
         contents: prompt,
         config: {
-          systemInstruction: "Você é um professor avaliador experiente e conteudista de alto nível. Siga rigorosamente o schema JSON. Crie questões profundas e que exijam pensamento crítico.",
+          systemInstruction: "Você é um professor acadêmico de alto nível, especialista em Ciências Humanas. Sua missão é produzir conteúdo intelectualmente denso, que desafie o aluno a pensar criticamente e aprofundar seu conhecimento. Evite clichês e generalizações. Siga rigorosamente o schema JSON.",
           responseMimeType: "application/json",
           responseSchema: schema,
         },
@@ -323,23 +331,23 @@ export const generateLessonPlan = async (subject: string, theme: string, grade: 
       required: ["title", "objectives", "theory", "methodology", "suggestedActivity"]
     };
 
-    const prompt = `Atue como um professor especialista e mentor pedagógico de alto nível. Crie um plano de aula detalhado, profundo e engajador para a disciplina de ${subject}, voltado para alunos da ${grade}ª série do Ensino Médio. O tema da aula é: "${theme}".
+    const prompt = `Atue como um Professor Doutor e Mentor Pedagógico de excelência. Crie um plano de aula EXTREMAMENTE detalhado, profundo e epistemologicamente sólido para a disciplina de ${subject}, voltado para alunos da ${grade}ª série do Ensino Médio. O tema da aula é: "${theme}".
     
     O plano de aula deve conter:
-    - title: Um título criativo e instigante para a aula.
-    - objectives: 3 a 4 objetivos de aprendizagem claros, focados no desenvolvimento de habilidades cognitivas superiores (análise, síntese, avaliação).
-    - theory: Uma explicação teórica aprofundada, rica em detalhes, conceitos-chave, contexto histórico/social e exemplos práticos que conectem o tema à realidade dos alunos. Inclua também pontos de resumo em tópicos (bullet points) que sejam altamente interessantes, diretos e ideais para o professor copiar na lousa (quadro negro).
-    - methodology: Um roteiro passo a passo para uma aula de 50 minutos, dividido em:
-        - introduction (10 min): Como engajar os alunos inicialmente (ex: uma pergunta provocadora, um dilema, uma imagem).
-        - development (30 min): Como aprofundar a teoria de forma interativa e dialógica.
-        - conclusion (10 min): Como sistematizar o conhecimento e fechar a aula de forma memorável.
-    - suggestedActivity: Uma sugestão de atividade prática, dinâmica ou de reflexão para fixação do conteúdo.`;
+    - title: Um título acadêmico e instigante.
+    - objectives: 3 a 4 objetivos de aprendizagem ambiciosos, focados em competências da BNCC e no desenvolvimento do pensamento crítico-reflexivo.
+    - theory: Uma explanação teórica densa e aprofundada (mínimo de 1000 palavras), rica em citações (reais ou parafraseadas de autores clássicos da área), conceitos-chave explicados minuciosamente, contexto histórico/social complexo e exemplos que conectem a alta teoria à práxis social. Inclua também uma seção de "Síntese para o Quadro" com tópicos estruturados, diretos e visualmente organizados para o professor transcrever.
+    - methodology: Um roteiro estratégico para uma aula de 50 minutos:
+        - introduction (10 min): Provocação intelectual, uso de metodologias ativas ou problematização inicial.
+        - development (30 min): Exposição dialogada aprofundada, análise de fontes e debate mediado.
+        - conclusion (10 min): Síntese integradora e fechamento com "gancho" para a próxima aula.
+    - suggestedActivity: Uma proposta de atividade prática ou de pesquisa que exija protagonismo do aluno e aplicação dos conceitos discutidos.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um mentor pedagógico experiente. Crie um plano de aula de 50 minutos que seja profundo, engajador e prático. A teoria deve ser excelente, com tópicos perfeitos para a lousa.",
+        systemInstruction: "Você é um mentor pedagógico doutor em Ciências Humanas. Crie planos de aula que sejam referências de profundidade teórica e clareza metodológica. A teoria deve ser um texto de excelência acadêmica, mas acessível ao Ensino Médio de alto nível.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
@@ -418,14 +426,15 @@ export const generateBimonthlyEvaluation = async (
       required: ["subject", "grade", "bimester", "questions"]
     };
 
-    const prompt = `Atue como um elaborador de provas do ENEM. Gere uma avaliação bimestral de alto nível para ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. 
+    const prompt = `Atue como um Especialista em Avaliação Educacional e Elaborador de Provas de Alto Nível (padrão ENEM e Vestibulares de Elite). Gere uma avaliação bimestral EXTREMAMENTE sofisticada para ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. 
     Tópicos a serem abordados: ${topics.join(', ')}.
     
     A avaliação deve conter:
-    - 5 questões de múltipla escolha (A-E) inéditas, complexas e contextualizadas.
-    - Cada questão deve conter um 'textFragment' (texto base, situação-problema, trecho de artigo ou documento histórico) que sirva de apoio para a resolução.
-    - As alternativas devem ser bem elaboradas, com distratores plausíveis que exijam raciocínio crítico, e não apenas memorização.
-    - Inclua um recurso visual (gráfico, tabela ou palavra cruzada) que seja fundamental para a interpretação de pelo menos uma das questões.`;
+    - 5 questões de múltipla escolha (A-E) inéditas, densas e interdisciplinares.
+    - Cada questão deve ser precedida por um 'textFragment' (texto-base) de alta qualidade: trechos de obras clássicas, artigos científicos, documentos históricos, notícias contemporâneas ou infográficos.
+    - As questões devem exigir competências complexas: análise de discurso, identificação de contradições, relação entre teoria e prática, e síntese de informações.
+    - Os distratores (alternativas incorretas) devem ser "inteligentes", baseados em erros comuns de raciocínio ou interpretações superficiais, exigindo que o aluno realmente domine o conceito para acertar.
+    - Inclua um recurso visual (gráfico, tabela ou palavra cruzada) que seja INDISPENSÁVEL para a resolução de pelo menos uma das questões, exigindo literacia visual.`;
 
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
@@ -433,7 +442,7 @@ export const generateBimonthlyEvaluation = async (
         model: "gemini-3.1-pro-preview",
         contents: prompt,
         config: {
-          systemInstruction: "Você é um especialista em avaliação educacional. Gere 5 questões no padrão ENEM, exigindo alta capacidade de leitura e interpretação. Siga rigorosamente o schema JSON.",
+          systemInstruction: "Você é um especialista em avaliação educacional de alto nível. Gere questões que testem a profundidade do conhecimento e a capacidade analítica do aluno, seguindo o rigor acadêmico das Ciências Humanas. Siga rigorosamente o schema JSON.",
           responseMimeType: "application/json",
           responseSchema: schema,
         },
