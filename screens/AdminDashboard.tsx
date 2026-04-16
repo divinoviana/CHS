@@ -148,22 +148,47 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleSeedDatabase = async () => {
-    if (!confirm("Isso irá gerar atividades padrão para TODAS as aulas que ainda não possuem atividade no banco de dados. Pode levar alguns segundos. Deseja continuar?")) return;
+  const handleHardReset = async () => {
+    if (!confirm("⚠️ ATENÇÃO: HARD RESET TOTAL!\n\nIsso irá apagar ABSOLUTAMENTE TUDO:\n- Questões\n- Atividades\n- Provas\n- Mensagens\n- Notas\n\nEsta ação é IRREVERSÍVEL. Deseja prosseguir?")) return;
     
     setLoading(true);
     try {
-      // Garantir que temos a lista atualizada de atividades já salvas
+      const collectionsToClear = ['questions', 'activities', 'bimonthly_exams', 'messages', 'student_notes'];
+      
+      for (const colName of collectionsToClear) {
+        const snapshot = await getDocs(collection(db, colName));
+        const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, colName, d.id)));
+        await Promise.all(deletePromises);
+        console.log(`Coleção ${colName} limpa.`);
+      }
+      
+      alert("Hard Reset concluído! O banco de dados está limpo e pronto para novos conteúdos.");
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.DELETE, 'database');
+    } finally {
+      setLoading(false);
+      fetchSavedActivities();
+      fetchQuestionBank();
+    }
+  };
+
+  const handleSeedDatabase = async () => {
+    if (!confirm("Deseja gerar atividades aprofundadas com IA para todas as aulas do currículo? Isso levará bastante tempo devido ao processamento da IA. Recomendamos gerar individualmente, mas podemos iniciar o processo agora.")) return;
+    
+    setLoading(true);
+    try {
       const currentSavedSnapshot = await getDocs(collection(db, 'activities'));
       const currentSavedIds = currentSavedSnapshot.docs.map(doc => doc.data().lesson_id);
       
-      const { generateFallbackActivity } = await import('../services/aiService');
+      const { generateLessonActivity } = await import('../services/aiService');
       
       const allLessons: any[] = [];
       curriculumData.forEach(grade => {
         grade.bimesters.forEach(bim => {
           bim.lessons.forEach(lesson => {
-            allLessons.push(lesson);
+            if (isSuper || lesson.subject === teacherSubject) {
+              allLessons.push(lesson);
+            }
           });
         });
       });
@@ -175,7 +200,8 @@ export const AdminDashboard: React.FC = () => {
         if (currentSavedIds.includes(lesson.id)) continue; 
         
         try {
-          const activity = generateFallbackActivity(lesson.title, lesson.theory, lesson.questions);
+          // Usamos a IA de verdade agora
+          const activity = await generateLessonActivity(lesson.title, lesson.theory || "");
           
           await addDoc(collection(db, 'activities'), {
             lesson_id: lesson.id, 
@@ -190,7 +216,7 @@ export const AdminDashboard: React.FC = () => {
               subject: lesson.subject,
               topic: lesson.title,
               type: 'objective',
-              difficulty: 'Médio',
+              difficulty: 'Difícil',
               question_text: q.question,
               options: q.options,
               correct_option: q.correctOption,
@@ -201,7 +227,7 @@ export const AdminDashboard: React.FC = () => {
               subject: lesson.subject,
               topic: lesson.title,
               type: 'discursive',
-              difficulty: 'Médio',
+              difficulty: 'Difícil',
               question_text: q.question,
               created_at: serverTimestamp()
             }))
@@ -210,47 +236,19 @@ export const AdminDashboard: React.FC = () => {
           for (const q of questionsToInsert) {
             await addDoc(collection(db, 'questions'), q);
           }
-          
           addedCount++;
+          // Pequena pausa para evitar rate limit
+          await new Promise(r => setTimeout(r, 1000));
         } catch (innerError) {
-          console.error(`Erro ao salvar aula ${lesson.id}:`, innerError);
+          console.error(`Erro ao gerar via IA para ${lesson.id}:`, innerError);
           errorCount++;
         }
       }
       
-      if (errorCount > 0) {
-        alert(`Processo finalizado com avisos. ${addedCount} atividades criadas, mas ${errorCount} falharam. Verifique as permissões do banco.`);
-      } else {
-        alert(`Sucesso! ${addedCount} atividades foram geradas e salvas.`);
-      }
-      
-      fetchSavedActivities();
-      fetchQuestionBank();
+      alert(`Processo concluído! ${addedCount} atividades profundas geradas. ${errorCount} erros.`);
     } catch (e: any) {
-      console.error("Erro no seed:", e);
-      alert(`Ocorreu um erro ao processar: ${e.message || 'Erro desconhecido'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClearDatabase = async () => {
-    if (!confirm("ATENÇÃO: Isso irá apagar TODAS as questões e atividades salvas no banco de dados. Esta ação não pode ser desfeita. Deseja continuar?")) return;
-    
-    setLoading(true);
-    try {
-      const qSnapshot = await getDocs(collection(db, 'questions'));
-      const aSnapshot = await getDocs(collection(db, 'activities'));
-      
-      const deletePromises = [
-        ...qSnapshot.docs.map(d => deleteDoc(doc(db, 'questions', d.id))),
-        ...aSnapshot.docs.map(d => deleteDoc(doc(db, 'activities', d.id)))
-      ];
-      
-      await Promise.all(deletePromises);
-      alert("Banco de dados limpo com sucesso!");
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, 'database');
+      console.error("Erro no seed AI:", e);
+      alert(`Erro: ${e.message}`);
     } finally {
       setLoading(false);
       fetchSavedActivities();
@@ -483,17 +481,29 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleViewLessonPlan = async (lesson: any, gradeId: number) => {
-    setViewingLessonPlan({
-      title: lesson.title,
-      objectives: lesson.objectives,
-      theory: lesson.theory,
-      methodology: {
-        introduction: "Introdução ao tema e contextualização.",
-        development: lesson.methodology || "Desenvolvimento do conteúdo com exemplos práticos.",
-        conclusion: "Revisão dos pontos chave e reflexão."
-      },
-      suggestedActivity: lesson.reflectionQuestions?.join('\n') || "Atividade prática em sala."
-    });
+    setIsGeneratingPlan(true);
+    try {
+      const { generateLessonPlan } = await import('../services/aiService');
+      const plan = await generateLessonPlan(lesson.subject, lesson.title, `${gradeId}ª Série`);
+      setViewingLessonPlan(plan);
+    } catch (e: any) {
+      console.error(e);
+      alert("Erro ao gerar plano de aula com IA: " + e.message);
+      // Fallback para o estático se a IA falhar
+      setViewingLessonPlan({
+        title: lesson.title,
+        objectives: lesson.objectives,
+        theory: lesson.theory,
+        methodology: {
+          introduction: "Introdução ao tema e contextualização.",
+          development: lesson.methodology || "Desenvolvimento do conteúdo com exemplos práticos.",
+          conclusion: "Revisão dos pontos chave e reflexão."
+        },
+        suggestedActivity: lesson.reflectionQuestions?.join('\n') || "Atividade prática em sala."
+      });
+    } finally {
+      setIsGeneratingPlan(false);
+    }
   };
 
   const loadTeacherProfile = async () => {
@@ -1446,12 +1456,12 @@ export const AdminDashboard: React.FC = () => {
                              Popular Banco Automaticamente
                           </button>
                           <button 
-                             onClick={handleClearDatabase}
+                             onClick={handleHardReset}
                              disabled={loading}
                              className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                           >
                              {loading ? <Loader2 className="animate-spin" size={14}/> : <Trash2 size={14}/>}
-                             Apagar Todas as Questões
+                             Hard Reset (Limpeza Profunda)
                           </button>
                        </div>
                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
