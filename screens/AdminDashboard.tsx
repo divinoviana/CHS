@@ -741,6 +741,7 @@ export const AdminDashboard: React.FC = () => {
       
       await addDoc(collection(db, 'students'), {
         ...newStudentData,
+        role: 'student',
         photo_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(newStudentData.name)}&background=random`,
         created_at: serverTimestamp()
       });
