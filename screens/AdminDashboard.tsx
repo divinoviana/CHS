@@ -98,56 +98,13 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchSavedActivities = async () => {
     try {
-      let q = query(collection(db, 'activities'));
-      // Se não for super admin, filtra as atividades pela disciplina do professor
-      // Nota: Precisamos garantir que o documento da atividade tenha o campo 'subject'
-      const querySnapshot = await getDocs(q);
-      let data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-      
-      if (!isSuper && teacherSubject) {
-        // Filtro em memória para garantir que funcione mesmo sem índice composto inicialmente
-        const subCode = teacherSubject === 'filosofia' ? 'phi' : teacherSubject.substring(0, 3);
-        data = data.filter(act => act.subject === teacherSubject || act.lesson_id.includes(`-${subCode}-`));
-      }
-      
-      setSavedActivities(data.map(act => act.lesson_id));
+      const q = query(collection(db, 'activities'), where('teacher_subject', '==', isSuper ? 'all' : teacherSubject));
+      const snap = await getDocs(q);
+      setSavedActivities(snap.docs.map(doc => doc.data().lesson_id));
     } catch (e) {
-      handleFirestoreError(e, OperationType.LIST, 'activities');
+      console.error("Erro ao buscar atividades salvas:", e);
     }
   };
-
-  const fetchQuestionBank = async () => {
-    try {
-      let q = query(collection(db, 'questions'), orderBy('created_at', 'desc'));
-      const querySnapshot = await getDocs(q);
-      let data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-      
-      if (!isSuper && teacherSubject) {
-        data = data.filter(q => q.subject === teacherSubject);
-      }
-      
-      setQuestionBank(data);
-    } catch (e) {
-      console.warn("Falha ao buscar banco de questões ordenado, tentando fallback:", e);
-      try {
-        const querySnapshot = await getDocs(collection(db, 'questions'));
-        let data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-        
-        if (!isSuper && teacherSubject) {
-          data = data.filter(q => q.subject === teacherSubject);
-        }
-        
-        setQuestionBank(data.sort((a, b) => {
-          const t1 = a.created_at?.seconds || 0;
-          const t2 = b.created_at?.seconds || 0;
-          return t2 - t1;
-        }));
-      } catch (innerE) {
-        handleFirestoreError(innerE, OperationType.LIST, 'questions');
-      }
-    }
-  };
-
   const handleHardReset = async () => {
     if (!confirm("⚠️ ATENÇÃO: HARD RESET TOTAL!\n\nIsso irá apagar ABSOLUTAMENTE TUDO:\n- Questões\n- Atividades\n- Provas\n- Mensagens\n- Notas\n\nEsta ação é IRREVERSÍVEL. Deseja prosseguir?")) return;
     
@@ -550,92 +507,81 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const loadData = async () => {
-    if (!teacherSubject) return;
+    if (!teacherSubject || isAuthLoading || !authUser) return;
     setLoading(true);
-    console.log("Iniciando carregamento de dados para:", teacherSubject);
     try {
-      // 1. Carregar Estudantes
-      try {
-        const studentsQuery = query(collection(db, 'students'), orderBy('name'));
-        const studentsSnapshot = await getDocs(studentsQuery);
-        setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (e) {
-        console.warn("Falha ao buscar estudantes ordenados, tentando sem ordem:", e);
-        const studentsSnapshot = await getDocs(collection(db, 'students'));
-        const data = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setStudents(data.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
-      }
+      // 1. Fetch Students
+      const studentsSnapshot = await getDocs(query(collection(db, 'students'), orderBy('name', 'asc')));
+      setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-      // 2. Carregar Submissões com Fallback para falta de índice
-      try {
-        let subQ;
-        if (isSuper) {
-          subQ = query(collection(db, 'submissions'), orderBy('submitted_at', 'desc'));
-        } else {
-          subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('submitted_at', 'desc'));
-        }
-        const subSnapshot = await getDocs(subQ);
-        setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
-      } catch (e: any) {
-        console.warn("Falha na query de submissões (provável falta de índice), usando fallback:", e.message);
-        try {
-          // Fallback: busca filtrado por disciplina se não for super
-          let fallbackQ = collection(db, 'submissions') as any;
-          if (!isSuper) {
-            fallbackQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject));
-          } else if (!authUser) {
-             return;
-          }
-          
-          const subSnapshot = await getDocs(fallbackQ);
-          let data = subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-          setSubmissions(data.sort((a: any, b: any) => {
-            const t1 = a.submitted_at?.seconds || 0;
-            const t2 = b.submitted_at?.seconds || 0;
-            return t2 - t1;
-          }));
-        } catch (innerE) {
-          console.error("Erro no fallback de submissões:", innerE);
-        }
+      // 2. Fetch Submissions
+      let subQ = query(collection(db, 'submissions'), orderBy('submitted_at', 'desc'));
+      if (!isSuper) {
+        subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('submitted_at', 'desc'));
       }
+      const subSnapshot = await getDocs(subQ);
+      setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-      // 3. Carregar Mensagens com Fallback
-      try {
-        let msgQ;
-        if (isSuper) {
-          msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'));
-        } else {
-          msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'));
-        }
-        const msgSnapshot = await getDocs(msgQ);
-        setMessages(msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })));
-      } catch (e: any) {
-        console.warn("Falha na query de mensagens, usando fallback:", e.message);
-        try {
-          // Fallback: busca filtrado por disciplina se não for super
-          let fallbackQ = collection(db, 'messages') as any;
-          if (!isSuper) {
-            fallbackQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject));
-          } else if (!authUser) {
-             // Se for super mas não logado, não adianta tentar buscar tudo
-             return;
-          }
-          
-          const msgSnapshot = await getDocs(fallbackQ);
-          let data = msgSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
-          setMessages(data.sort((a: any, b: any) => {
-            const t1 = a.created_at?.seconds || 0;
-            const t2 = b.created_at?.seconds || 0;
-            return t1 - t2;
-          }));
-        } catch (innerE) {
-          console.error("Erro no fallback de mensagens:", innerE);
-        }
+      // 3. Fetch Saved Activities IDs
+      const actQ = query(collection(db, 'activities'), where('teacher_subject', '==', isSuper ? 'all' : teacherSubject));
+      const actSnap = await getDocs(actQ);
+      setSavedActivities(actSnap.docs.map(doc => doc.data().lesson_id));
+
+      // 4. Fetch Question Bank
+      fetchQuestionBank(); 
+
+      // 5. Messages 
+      let msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'), limit(50));
+      if (!isSuper) {
+        msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'), limit(50));
       }
+      const msgSnap = await getDocs(msgQ);
+      setMessages(msgSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
       loadTeacherProfile();
     } catch (e) {
-      console.error("Erro crítico ao carregar dados do dashboard:", e);
+      console.error("Erro ao carregar dados:", e);
+    } finally { setLoading(false); }
+  };
+
+  const fetchQuestionBank = async () => {
+    try {
+      let q = query(collection(db, 'questions'), orderBy('created_at', 'desc'));
+      if (!isSuper && teacherSubject) {
+        q = query(collection(db, 'questions'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
+      }
+      const snapshot = await getDocs(q);
+      setQuestionBank(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (e) {
+      console.warn("Falha ao buscar banco de questões:", e);
+    }
+  };
+
+  const handleDeleteQuestion = async (id: string) => {
+    if (!confirm("Deseja realmente excluir esta questão do banco?")) return;
+    try {
+      await deleteDoc(doc(db, 'questions', id));
+      setQuestionBank(prev => prev.filter(q => q.id !== id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `questions/${id}`);
+    }
+  };
+
+  const handleDeleteActivity = async (lessonId: string) => {
+    if (!confirm("Deseja excluir permanentemente esta atividade e suas questões?")) return;
+    setLoading(true);
+    try {
+      const actQ = query(collection(db, 'activities'), where('lesson_id', '==', lessonId));
+      const actSnap = await getDocs(actQ);
+      for (const d of actSnap.docs) await deleteDoc(doc(db, 'activities', d.id));
+      const qQ = query(collection(db, 'questions'), where('lesson_id', '==', lessonId));
+      const qSnap = await getDocs(qQ);
+      for (const d of qSnap.docs) await deleteDoc(doc(db, 'questions', d.id));
+      setSavedActivities(prev => prev.filter(id => id !== lessonId));
+      fetchQuestionBank();
+      alert("Excluído!");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'activities/questions');
     } finally { setLoading(false); }
   };
 
@@ -1508,7 +1454,12 @@ export const AdminDashboard: React.FC = () => {
                     ) : (
                       <div className="space-y-4">
                         {questionBank.map((q) => (
-                          <div key={q.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                          <div key={q.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative group overflow-hidden">
+                            <div className="absolute top-4 right-4 flex gap-2">
+                               <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 bg-white text-red-500 rounded-lg shadow-sm border border-red-50 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" title="Excluir">
+                                 <Trash2 size={14}/>
+                               </button>
+                            </div>
                             <div className="flex items-center gap-3 mb-3">
                                <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${q.type === 'objective' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                                  {q.type === 'objective' ? 'Objetiva' : 'Discursiva'}
@@ -1661,14 +1612,25 @@ export const AdminDashboard: React.FC = () => {
                                              <span className="whitespace-normal break-words leading-tight group-hover:text-amber-900">{l.title}</span>
                                           </div>
                                         </button>
-                                        <button
-                                          onClick={() => handleGenerateAndSaveActivity(l)}
-                                          disabled={isGeneratingActivityFor === l.id || savedActivities.includes(l.id)}
-                                          className={`p-2 rounded-xl border transition-all ${savedActivities.includes(l.id) ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-slate-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'}`}
-                                          title={savedActivities.includes(l.id) ? 'Atividade já salva no banco' : 'Gerar Atividade com IA e Salvar'}
-                                        >
-                                          {isGeneratingActivityFor === l.id ? <Loader2 size={16} className="animate-spin" /> : savedActivities.includes(l.id) ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
-                                        </button>
+                                        <div className="flex gap-1 shrink-0">
+                                          <button
+                                            onClick={() => handleGenerateAndSaveActivity(l)}
+                                            disabled={isGeneratingActivityFor === l.id || savedActivities.includes(l.id)}
+                                            className={`p-2 rounded-xl border transition-all ${savedActivities.includes(l.id) ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-slate-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'}`}
+                                            title={savedActivities.includes(l.id) ? 'Atividade já salva no banco' : 'Gerar Atividade com IA e Salvar'}
+                                          >
+                                            {isGeneratingActivityFor === l.id ? <Loader2 size={16} className="animate-spin" /> : savedActivities.includes(l.id) ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
+                                          </button>
+                                          {savedActivities.includes(l.id) && (
+                                             <button
+                                               onClick={() => handleDeleteActivity(l.id)}
+                                               className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
+                                               title="Excluir Atividade e Questões do Banco"
+                                             >
+                                               <Trash2 size={16}/>
+                                             </button>
+                                          )}
+                                        </div>
                                       </div>
                                    ))}
                                 </div>

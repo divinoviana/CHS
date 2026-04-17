@@ -259,25 +259,26 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
       required: ["objectives", "discursives"]
     };
 
-    const prompt = `Atue como um Professor Doutor e Especialista em Ciências Humanas (Filosofia, História, Geografia e Sociologia). 
-    Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 3000)}", crie uma atividade EXTREMAMENTE aprofundada, analítica e intelectualmente desafiadora para alunos do Ensino Médio.
+    const prompt = `Atue como um Professor Doutor e Especialista em Ciências Humanas (Filosofia, História, Geografia e Sociologia) com vasta experiência acadêmica. 
+    Com base na aula "${lessonTitle}" e no referencial teórico fornecido: "${theory.substring(0, 3000)}", sua missão é consolidar uma atividade de EXTREMA PROFUNDIDADE Intelectual, voltada para o desenvolvimento do pensamento complexo e dialético em alunos do Ensino Médio de alto rendimento.
     
-    A atividade deve conter:
-    1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E). As questões DEVEM ser de alto nível, exigindo:
-       - Interpretação de textos complexos ou fontes primárias/secundárias.
-       - Análise crítica de fenômenos sociais, históricos ou geográficos.
-       - Relação interdisciplinar entre as áreas de Ciências Humanas.
-       - Uso de situações-problema que fujam do óbvio e exijam raciocínio lógico-formal.
-    2. EXATAMENTE 2 questões discursivas (abertas) de nível acadêmico, que exijam:
-       - Reflexão crítica profunda e argumentação estruturada.
-       - Conexão do tema com dilemas éticos, políticos ou sociais da contemporaneidade.
-       - Capacidade de síntese e avaliação de diferentes perspectivas teóricas.
-    3. UM CONTEÚDO VISUAL COMPLEMENTAR (opcional, mas recomendado):
-       - Se for 'chart': Dados estatísticos reais ou simulados para análise sociológica/geográfica.
-       - Se for 'table': Comparativos conceituais ou dados históricos.
-       - Se for 'crossword': Termos técnicos e conceitos fundamentais aprofundados.
+    A atividade deve ser composta por:
+    1. EXATAMENTE 5 QUESTÕES OBJETIVAS (múltipla escolha, A-E). Estas questões devem simular os vestibulares mais exigentes (como UNICAMP, USP, UNESP) e o ENEM em seu nível máximo de dificuldade. 
+       Requisitos das questões:
+       - Utilizar textos-base densos (fragmentos de autores clássicos, artigos científicos recentes ou documentos históricos primários).
+       - Exigir o domínio de categorias teóricas específicas (ex: "mais-valia", "imperativo categórico", "estratificação social", "territorialidade").
+       - Propor distratores plausíveis que exijam a superação do senso comum e da interpretação literal.
+       - Focar em relações de causa e efeito, contradições sociais e análises conjunturais.
+    2. EXATAMENTE 2 QUESTÕES DISCURSIVAS de nível universitário, que exijam:
+       - Produção textual argumentativa e fundamentada a partir da síntese da teoria.
+       - Posicionamento ético-político crítico frente a dilemas contemporâneos.
+       - Capacidade de relacionar o tema com a realidade regional do Tocantins ou problemas globais.
+    3. UM RECURSO VISUAL ANALÍTICO (opcional, porem recomendável):
+       - Se for 'chart': Dados para análise sociológica ou demográfica.
+       - Se for 'table': Confronto de perspectivas teóricas ou períodos históricos.
+       - Se for 'crossword': Definições epistemológicas e conceitos de matrizes curriculares avançadas.
     
-    As questões devem seguir o rigor e a sofisticação das melhores avaliações do país (ENEM de alto nível, vestibulares de excelência), sendo densas, contextualizadas e que fujam de repetições genéricas.`;
+    Evite abordagens superficiais. O vocabulário deve ser técnico e acadêmico, instigando o aluno a elevar seu patamar de discussão.`;
 
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
