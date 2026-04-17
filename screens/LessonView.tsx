@@ -60,13 +60,8 @@ export const LessonView: React.FC = () => {
         const actSnapshot = await getDocs(q);
 
         if (actSnapshot.empty) {
-          // Se não encontrou no banco, gera uma atividade de fallback na hora para o aluno não ficar sem nada
-          const { generateFallbackActivity } = await import('../services/aiService');
-          const fallbackActivity = generateFallbackActivity(foundLesson.title, foundLesson.theory, foundLesson.questions);
-          setLessonActivity({
-            ...fallbackActivity,
-            dbActivityId: 'fallback' // ID temporário
-          } as any);
+          // Se não encontrou no banco, não gera mais automaticamente (pedido do usuário)
+          setLessonActivity(null);
           return;
         }
 

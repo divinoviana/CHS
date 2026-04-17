@@ -78,11 +78,11 @@
       "type": "object",
       "properties": {
         "student_id": { "type": "string" },
-        "teacher_subject": { "type": "string" },
+        "subject": { "type": "string" },
         "content": { "type": "string" },
         "created_at": { "type": "string", "format": "date-time" }
       },
-      "required": ["student_id", "teacher_subject", "content", "created_at"]
+      "required": ["student_id", "subject", "content", "created_at"]
     },
     "BimonthlyExam": {
       "title": "BimonthlyExam",

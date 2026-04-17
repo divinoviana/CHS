@@ -117,7 +117,7 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchSavedActivities = async () => {
     try {
-      const q = query(collection(db, 'activities'), where('teacher_subject', '==', isSuper ? 'all' : teacherSubject));
+      const q = query(collection(db, 'activities'), where('subject', '==', isSuper ? 'all' : teacherSubject));
       const snap = await getDocs(q);
       setSavedActivities(snap.docs.map(doc => doc.data().lesson_id));
     } catch (e) {
@@ -551,7 +551,7 @@ export const AdminDashboard: React.FC = () => {
         await addDoc(collection(db, 'activities'), {
           lesson_id: selectedLessonForEdit.id,
           title: `Atividade: ${selectedLessonForEdit.title}`,
-          teacher_subject: selectedLessonForEdit.subject,
+          subject: selectedLessonForEdit.subject,
           created_at: serverTimestamp()
         });
         setSavedActivities([...savedActivities, selectedLessonForEdit.id]);
@@ -617,29 +617,13 @@ export const AdminDashboard: React.FC = () => {
       const studentsSnapshot = await getDocs(query(collection(db, 'students'), orderBy('name', 'asc')));
       setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-      // 2. Fetch Submissions
-      let subQ = query(collection(db, 'submissions'), orderBy('submitted_at', 'desc'));
-      if (!isSuper) {
-        subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('submitted_at', 'desc'));
-      }
-      const subSnapshot = await getDocs(subQ);
-      setSubmissions(subSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-      // 3. Fetch Saved Activities IDs
-      const actQ = query(collection(db, 'activities'), where('teacher_subject', '==', isSuper ? 'all' : teacherSubject));
+      // 2. Fetch Saved Activities IDs
+      const actQ = query(collection(db, 'activities'), where('subject', '==', isSuper ? 'all' : teacherSubject));
       const actSnap = await getDocs(actQ);
       setSavedActivities(actSnap.docs.map(doc => doc.data().lesson_id));
 
-      // 4. Fetch Question Bank
+      // 3. Fetch Question Bank
       fetchQuestionBank(); 
-
-      // 5. Messages 
-      let msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'), limit(50));
-      if (!isSuper) {
-        msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'), limit(50));
-      }
-      const msgSnap = await getDocs(msgQ);
-      setMessages(msgSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
       loadTeacherProfile();
     } catch (e) {
@@ -689,32 +673,53 @@ export const AdminDashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!teacherSubject || isAuthLoading) return;
+    if (!teacherSubject || isAuthLoading || !authUser) return;
     
-    // Precisamos estar autenticados no Firebase para ler mensagens
-    if (!authUser) {
-        console.log("Aguardando autenticação Firebase para carregar mensagens...");
-        return;
-    }
-    
-    let msgQ = query(collection(db, 'messages'), orderBy('created_at', 'asc'));
+    // Listen for Submissions
+    let subQ = query(collection(db, 'submissions'));
     if (!isSuper) {
-      msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'asc'));
+      subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject));
     }
 
-    const unsubscribe = onSnapshot(msgQ, (snapshot) => {
-      const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMessages(newMessages);
+    const unsubscribeSub = onSnapshot(subQ, (snapshot) => {
+      const allSubs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Sort in memory to avoid index requirement
+      const sortedSubs = allSubs.sort((a: any, b: any) => {
+        const timeA = a.submitted_at?.toDate ? a.submitted_at.toDate().getTime() : 0;
+        const timeB = b.submitted_at?.toDate ? b.submitted_at.toDate().getTime() : 0;
+        return timeB - timeA;
+      });
+      setSubmissions(sortedSubs);
     }, (error) => {
-      // Se for erro de permissão durante a inicialização/troca de conta, apenas logamos no console
-      if (error.message.includes('permissions')) {
-        console.warn("Aviso: Sem permissão para ouvir mensagens em tempo real no momento.", error.message);
-      } else {
+      if (!error.message.includes('permissions')) {
+        console.error("Submissions listener error:", error);
+      }
+    });
+
+    // Listen for Messages
+    let msgQ = query(collection(db, 'messages'));
+    if (!isSuper) {
+      msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject));
+    }
+
+    const unsubscribeMsg = onSnapshot(msgQ, (snapshot) => {
+      const allMsgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const sortedMsgs = allMsgs.sort((a: any, b: any) => {
+        const timeA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+        const timeB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+        return timeA - timeB;
+      });
+      setMessages(sortedMsgs);
+    }, (error) => {
+      if (!error.message.includes('permissions')) {
         handleFirestoreError(error, OperationType.LIST, 'messages');
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeSub();
+      unsubscribeMsg();
+    };
   }, [teacherSubject, isSuper, authUser, isAuthLoading]);
 
   useEffect(() => {
@@ -740,12 +745,17 @@ export const AdminDashboard: React.FC = () => {
       const q = query(
         collection(db, 'student_notes'),
         where('student_id', '==', studentId),
-        where('teacher_subject', '==', teacherSubject),
-        orderBy('created_at', 'desc')
+        where('subject', '==', teacherSubject)
       );
       const querySnapshot = await getDocs(q);
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setStudentNotesHistory(data || []);
+      // In-memory sort
+      const sorted = data.sort((a: any, b: any) => {
+        const timeA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
+        const timeB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
+        return timeB - timeA;
+      });
+      setStudentNotesHistory(sorted || []);
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, 'student_notes');
     }
@@ -757,7 +767,7 @@ export const AdminDashboard: React.FC = () => {
     try {
       await addDoc(collection(db, 'student_notes'), {
         student_id: selectedStudent.id,
-        teacher_subject: teacherSubject,
+        subject: teacherSubject,
         content: studentNote.trim(),
         created_at: serverTimestamp()
       });
@@ -775,6 +785,7 @@ export const AdminDashboard: React.FC = () => {
     try {
       await updateDoc(doc(db, 'student_notes', editingNoteId), {
         content: editingNoteContent.trim(),
+        subject: teacherSubject, // Assure subject remains correct
         updated_at: serverTimestamp()
       });
       
@@ -961,7 +972,7 @@ export const AdminDashboard: React.FC = () => {
         schoolClass = student.school_class;
         targetGrades = submissions.filter(s => s.student_name === student.name.trim()).map(s => Number(s.score));
         
-        const q = query(collection(db, 'student_notes'), where('student_id', '==', student.id), where('teacher_subject', '==', teacherSubject));
+        const q = query(collection(db, 'student_notes'), where('student_id', '==', student.id), where('subject', '==', teacherSubject));
         const notesSnapshot = await getDocs(q);
         targetNotes = notesSnapshot.docs.map(n => n.data().content);
       } else {
@@ -1542,18 +1553,20 @@ export const AdminDashboard: React.FC = () => {
                         <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Banco de Questões</h2>
                         <p className="text-sm text-slate-500 mt-1">Aqui estão todas as questões geradas e salvas no banco de dados. Elas podem ser reutilizadas em avaliações futuras.</p>
                       </div>
-                      <button 
-                        onClick={handleSeedDatabase}
-                        disabled={loading}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
-                      >
-                        {loading ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
-                        Popular Banco Automaticamente
-                      </button>
+                      {/* {isSuper && (
+                        <button 
+                          onClick={handleSeedDatabase}
+                          disabled={loading}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                        >
+                          {loading ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
+                          Popular Banco Automaticamente
+                        </button>
+                      )} */}
                     </div>
                     
                     {questionBank.length === 0 ? (
-                      <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold">Nenhuma questão no banco. Clique no botão acima para gerar atividades para todas as aulas.</div>
+                      <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold">Nenhuma questão no banco. Use o Plano de Aulas para criar novas atividades.</div>
                     ) : (
                       <div className="space-y-4">
                         {questionBank.map((q) => (

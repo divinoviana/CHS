@@ -86,10 +86,10 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.uid == resource.data.student_id || 
         isAdmin() ||
-        (!exists(/databases/$(database)/documents/students/$(request.auth.uid)) && resource.data.teacher_subject != null)
+        (!exists(/databases/$(database)/documents/students/$(request.auth.uid)) && resource.data.subject != null)
       );
-      allow create: if isAdmin() || (!exists(/databases/$(database)/documents/students/$(request.auth.uid)) && request.resource.data.teacher_subject != null);
-      allow update: if isAdmin() || (!exists(/databases/$(database)/documents/students/$(request.auth.uid)) && resource.data.teacher_subject != null);
+      allow create: if isAdmin() || (!exists(/databases/$(database)/documents/students/$(request.auth.uid)) && request.resource.data.subject != null);
+      allow update: if isAdmin() || (!exists(/databases/$(database)/documents/students/$(request.auth.uid)) && resource.data.subject != null);
       allow delete: if isAdmin();
     }
 
