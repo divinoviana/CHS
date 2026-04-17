@@ -16,6 +16,7 @@ export const GradeView: React.FC = () => {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [exams, setExams] = useState<any[]>([]);
   const [userSubmissions, setUserSubmissions] = useState<string[]>([]);
+  const [publishedLessonIds, setPublishedLessonIds] = useState<string[]>([]);
   const [loadingExams, setLoadingExams] = useState(true);
   
   const subjectKey = searchParams.get('subject') as Subject || 'filosofia';
@@ -76,8 +77,25 @@ export const GradeView: React.FC = () => {
       const subsSnapshot = await getDocs(subsQ);
       const subsData = subsSnapshot.docs.map(doc => doc.data().lesson_title.trim());
 
+      // 3. Fetch published lessons (overrides or activities)
+      const overridesQ = query(collection(db, 'lesson_overrides'));
+      const actsQ = query(collection(db, 'activities'));
+      
+      const [overridesSnap, actsSnap] = await Promise.all([
+        getDocs(overridesQ),
+        getDocs(actsQ)
+      ]);
+
+      const publishedIds = new Set<string>();
+      overridesSnap.forEach(doc => publishedIds.add(doc.id));
+      actsSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.lesson_id) publishedIds.add(data.lesson_id);
+      });
+
       setExams(filteredExams || []);
       setUserSubmissions(subsData || []);
+      setPublishedLessonIds(Array.from(publishedIds));
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, 'bimonthly_exams');
     } finally {
@@ -192,7 +210,9 @@ export const GradeView: React.FC = () => {
             <div className="space-y-8">
               {grade.bimesters.map((bimester) => {
                 const filteredLessons = bimester.lessons.filter(l => l.subject === subjectKey);
-                if (filteredLessons.length === 0) return null;
+                const publishedInBimester = filteredLessons.filter(l => publishedLessonIds.includes(l.id));
+                
+                if (publishedInBimester.length === 0) return null;
 
                 const displayTitle = bimester.subjectTitles?.[subjectKey] || bimester.title;
 
@@ -204,7 +224,12 @@ export const GradeView: React.FC = () => {
                     </div>
                     <div className="divide-y divide-slate-50">
                       {filteredLessons.map((lesson) => {
+                        const isPublished = publishedLessonIds.includes(lesson.id);
                         const isLessonDone = userSubmissions.includes(lesson.title.trim());
+                        
+                        // Oculta se não estiver publicado (fator "apagar conteúdos antigos")
+                        if (!isPublished) return null;
+
                         return (
                           <Link key={lesson.id} to={`/lesson/${lesson.id}`} className="flex items-center p-6 hover:bg-slate-50/80 transition group">
                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all mr-5 ${isLessonDone ? 'bg-green-50 text-green-500' : 'bg-slate-100 text-slate-400 group-hover:bg-tocantins-blue group-hover:text-white group-hover:rotate-6'}`}>

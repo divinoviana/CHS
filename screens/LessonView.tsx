@@ -78,23 +78,7 @@ export const LessonView: React.FC = () => {
         let qSnapshot = await getDocs(q2);
 
         if (qSnapshot.empty) {
-          // Fallback para busca por tópico (legado)
-          q2 = query(
-            collection(db, 'questions'),
-            where('topic', '==', foundLesson.title),
-            where('subject', '==', foundLesson.subject)
-          );
-          qSnapshot = await getDocs(q2);
-        }
-
-        if (qSnapshot.empty) {
-          // Se encontrou a atividade mas não encontrou as questões, gera o fallback
-          const { generateFallbackActivity } = await import('../services/aiService');
-          const fallbackActivity = generateFallbackActivity(foundLesson.title, displayTheory, foundLesson.questions);
-          setLessonActivity({
-            ...fallbackActivity,
-            dbActivityId: 'fallback' // ID temporário
-          } as any);
+          setLessonActivity(null);
           return;
         }
 
@@ -164,7 +148,7 @@ export const LessonView: React.FC = () => {
   if (!foundLesson) return <div className="p-8 text-center">Aula não encontrada.</div>;
 
   const displayTitle = lessonOverride?.title || foundLesson.title;
-  const displayTheory = lessonOverride?.theory || foundLesson.theory;
+  const displayTheory = lessonOverride?.theory || null;
 
   const handleOptionSelect = (questionId: string, option: string) => {
     setAnswers(prev => ({ ...prev, [`obj-${questionId}`]: option }));
@@ -299,30 +283,32 @@ export const LessonView: React.FC = () => {
             <h3 className="flex items-center text-2xl font-bold text-slate-800 mb-6 pb-4 border-b border-slate-100">
               <BookOpen className="w-7 h-7 mr-3 text-indigo-600" /> Teoria
             </h3>
-            <div className="bg-slate-50 p-6 rounded-2xl border-l-4 border-indigo-500 whitespace-pre-wrap text-slate-700 leading-relaxed font-medium">
-              {displayTheory}
-            </div>
+            {displayTheory ? (
+              <div className="bg-slate-50 p-6 rounded-2xl border-l-4 border-indigo-500 whitespace-pre-wrap text-slate-700 leading-relaxed font-medium">
+                {displayTheory}
+              </div>
+            ) : (
+              <div className="bg-amber-50 p-8 rounded-3xl border border-amber-200 text-center animate-in fade-in zoom-in-95">
+                <HelpCircle className="mx-auto text-amber-500 mb-4" size={48} />
+                <h4 className="text-amber-900 font-black uppercase text-sm tracking-tighter">Aula em Preparação</h4>
+                <p className="text-amber-700 text-[10px] font-bold uppercase tracking-widest mt-2">O professor ainda não publicou o conteúdo teórico desta aula.</p>
+              </div>
+            )}
           </div>
 
-          {/* SEÇÃO: ATIVIDADES DINÂMICAS IA */}
+          {/* SEÇÃO: ATIVIDADES */}
           <div className="mb-12">
-            <h3 className="flex items-center text-2xl font-bold text-slate-800 mb-8">
-              <PenTool className="w-7 h-7 mr-3 text-green-600" /> Atividades
+            <h3 className="flex items-center text-2xl font-bold text-slate-800 mb-8 pb-4 border-b border-slate-100">
+              <PenTool className="w-7 h-7 mr-3 text-tocantins-blue" /> Atividades
             </h3>
 
             {isActivityLoading ? (
               <div className="bg-slate-50 p-20 rounded-[40px] border border-dashed border-slate-200 flex flex-col items-center justify-center gap-4 text-center">
-                 <div className="w-16 h-16 bg-white rounded-3xl shadow-xl flex items-center justify-center animate-bounce">
-                    <Sparkles className="text-tocantins-blue" size={32}/>
-                 </div>
-                 <div>
-                    <h4 className="font-black text-slate-800 uppercase tracking-tight">IA está criando sua atividade...</h4>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Gerando 5 objetivas, 2 discursivas e recursos visuais agora</p>
-                 </div>
-                 <Loader2 className="animate-spin text-tocantins-blue" size={24}/>
+                 <Loader2 className="animate-spin text-tocantins-blue" size={32}/>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Buscando questões no banco...</p>
               </div>
-            ) : (lessonActivity && lessonActivity.objectives && lessonActivity.discursives) ? (
-              <div className="space-y-12">
+            ) : lessonActivity ? (
+              <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 
                 {/* RECURSO VISUAL DINÂMICO */}
                 {lessonActivity.visualContent && (
@@ -330,66 +316,76 @@ export const LessonView: React.FC = () => {
                 )}
 
                 {/* QUESTÕES OBJETIVAS */}
-                <div className="space-y-8">
-                   <div className="flex items-center gap-2 mb-4">
-                      <ListChecks className="text-tocantins-blue" size={20}/>
-                      <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Parte 1: Questões Objetivas</h4>
-                   </div>
-                   {lessonActivity.objectives.map((q, idx) => (
-                     <div key={q.id} className="bg-slate-50/50 p-8 rounded-[32px] border border-slate-200 space-y-6">
-                        <div className="flex items-start gap-4">
-                           <span className="bg-slate-900 text-white w-8 h-8 rounded-lg flex items-center justify-center font-black flex-shrink-0 text-sm">{idx + 1}</span>
-                           <p className="text-lg font-bold text-slate-800 leading-tight">{q.question}</p>
-                        </div>
-                        <div className="space-y-3">
-                           {Object.entries(q.options).map(([opt, text]) => (
-                             <button 
-                               key={opt}
-                               onClick={() => handleOptionSelect(q.id, opt)}
-                               className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-4 ${answers[`obj-${q.id}`] === opt ? 'border-tocantins-blue bg-blue-50 shadow-md ring-2 ring-blue-100' : 'border-white bg-white hover:bg-slate-50 hover:border-slate-100'}`}
-                             >
-                                <span className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 font-black uppercase text-[10px] ${answers[`obj-${q.id}`] === opt ? 'bg-tocantins-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                   {opt}
-                                </span>
-                                <span className={`text-sm font-medium ${answers[`obj-${q.id}`] === opt ? 'text-blue-900' : 'text-slate-600'}`}>
-                                   {text}
-                                </span>
-                             </button>
-                           ))}
-                        </div>
-                     </div>
-                   ))}
-                </div>
+                {lessonActivity.objectives && lessonActivity.objectives.length > 0 && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-2 mb-4">
+                        <ListChecks className="text-tocantins-blue" size={20}/>
+                        <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Parte 1: Questões Objetivas</h4>
+                    </div>
+                    {lessonActivity.objectives.map((q, idx) => (
+                      <div key={q.id} className="bg-slate-50/50 p-8 rounded-[32px] border border-slate-200 space-y-6">
+                          <div className="flex items-start gap-4">
+                             <span className="bg-slate-900 text-white w-8 h-8 rounded-lg flex items-center justify-center font-black flex-shrink-0 text-sm">{idx + 1}</span>
+                             <p className="text-lg font-bold text-slate-800 leading-tight">{q.question}</p>
+                          </div>
+                          <div className="space-y-3">
+                             {Object.entries(q.options).map(([opt, text]) => (
+                               <button 
+                                 key={opt}
+                                 onClick={() => handleOptionSelect(q.id!, opt)}
+                                 className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-4 ${answers[`obj-${q.id}`] === opt ? 'border-tocantins-blue bg-blue-50 shadow-md ring-2 ring-blue-100' : 'border-white bg-white hover:bg-slate-50 hover:border-slate-100'}`}
+                               >
+                                  <span className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 font-black uppercase text-[10px] ${answers[`obj-${q.id}`] === opt ? 'bg-tocantins-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                     {opt}
+                                  </span>
+                                  <span className={`text-sm font-medium ${answers[`obj-${q.id}`] === opt ? 'text-blue-900' : 'text-slate-600'}`}>
+                                     {text as string}
+                                  </span>
+                               </button>
+                             ))}
+                          </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* QUESTÕES DISCURSIVAS */}
-                <div className="space-y-8">
-                   <div className="flex items-center gap-2 mb-4">
-                      <HelpCircle className="text-amber-500" size={20}/>
-                      <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Parte 2: Questões Discursivas</h4>
-                   </div>
-                   {lessonActivity.discursives.map((q, idx) => (
-                     <div key={q.id} className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
-                        <ActivityInput 
-                          questionId={q.id} 
-                          questionText={`${idx + 6}. ${q.question}`} 
-                          value={answers[`disc-${q.id}`] || ''} 
-                          onChange={(val) => handleDiscursiveChange(q.id, val)} 
-                        />
-                     </div>
-                   ))}
-                </div>
+                {lessonActivity.discursives && lessonActivity.discursives.length > 0 && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-2 mb-4">
+                        <HelpCircle className="text-amber-500" size={20}/>
+                        <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Parte 2: Questões Discursivas</h4>
+                    </div>
+                    {lessonActivity.discursives.map((q, idx) => (
+                      <div key={q.id} className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
+                          <ActivityInput 
+                            questionId={q.id!} 
+                            questionText={`${(lessonActivity.objectives?.length || 0) + idx + 1}. ${q.question}`} 
+                            value={answers[`disc-${q.id}`] || ''} 
+                            onChange={(val) => handleDiscursiveChange(q.id!, val)} 
+                          />
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <button 
                   type="button"
                   onClick={handleLocalCorrection} 
-                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-6 rounded-3xl flex items-center justify-center gap-3 shadow-2xl hover:shadow-indigo-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer"
+                  disabled={aiLoading}
+                  className="w-full bg-gradient-to-r from-tocantins-blue to-indigo-700 text-white font-black py-6 rounded-[32px] flex items-center justify-center gap-3 shadow-xl hover:shadow-blue-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer disabled:opacity-50"
                 >
-                  <CheckCircle2 size={24} /> Finalizar e Ver Correção
+                  {aiLoading ? <Loader2 className="animate-spin" size={24}/> : <CheckCircle2 size={24} />} 
+                  {aiLoading ? "IA CORRIGINDO..." : "FINALIZAR E VER CORREÇÃO"}
                 </button>
 
               </div>
             ) : (
-              <div className="text-center py-10 text-slate-400">Clique para carregar as atividades.</div>
+              <div className="bg-slate-50 p-12 rounded-[40px] border border-slate-100 text-center animate-in fade-in">
+                <ListChecks className="mx-auto text-slate-300 mb-4" size={48} />
+                <h4 className="text-slate-800 font-bold uppercase text-xs tracking-widest">Atividades em Preparação</h4>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-2">O professor ainda não publicou atividades para esta aula.</p>
+              </div>
             )}
           </div>
         </div>
