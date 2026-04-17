@@ -7,6 +7,7 @@ import { subjectsInfo, ADMIN_PASSWORDS, TEACHER_EMAILS, curriculumData } from '.
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { exportToPDF } from '../lib/pdfUtils';
 import { generateBimonthlyEvaluation, GeneratedEvaluation, generatePedagogicalSummary, generateLessonPlan, LessonPlan } from '../services/aiService';
 import { 
   Users, BookOpen, User, 
@@ -86,6 +87,24 @@ export const AdminDashboard: React.FC = () => {
   const [savedActivities, setSavedActivities] = useState<string[]>([]);
   const [isGeneratingActivityFor, setIsGeneratingActivityFor] = useState<string | null>(null);
   const [questionBank, setQuestionBank] = useState<any[]>([]);
+
+  // Lesson/Activity Manual Editor States
+  const [selectedLessonForEdit, setSelectedLessonForEdit] = useState<any>(null);
+  const [isLessonEditorOpen, setIsLessonEditorOpen] = useState(false);
+  const [lessonTheoryDraft, setLessonTheoryDraft] = useState('');
+  const [lessonTitleDraft, setLessonTitleDraft] = useState('');
+  const [isSavingLesson, setIsSavingLesson] = useState(false);
+
+  const [isActivityEditorOpen, setIsActivityEditorOpen] = useState(false);
+  const [activityQuestionsDraft, setActivityQuestionsDraft] = useState<any[]>([]);
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
+  const [newQuestion, setNewQuestion] = useState<any>({
+    type: 'objective',
+    question_text: '',
+    options: { a: '', b: '', c: '', d: '', e: '' },
+    correct_option: 'a',
+    difficulty: 'Médio'
+  });
 
   useEffect(() => {
     if (activeTab === 'lessons_list') {
@@ -444,29 +463,113 @@ export const AdminDashboard: React.FC = () => {
     setLoading(false);
   };
 
-  const handleViewLessonPlan = async (lesson: any, gradeId: number) => {
-    setIsGeneratingPlan(true);
+  const handleOpenLessonEditor = async (lesson: any) => {
+    setSelectedLessonForEdit(lesson);
+    setLessonTitleDraft(lesson.title);
+    setLessonTheoryDraft(lesson.theory);
+    setIsLessonEditorOpen(true);
+    
     try {
-      const { generateLessonPlan } = await import('../services/aiService');
-      const plan = await generateLessonPlan(lesson.subject, lesson.title, `${gradeId}ª Série`);
-      setViewingLessonPlan(plan);
-    } catch (e: any) {
-      console.error(e);
-      alert("Erro ao gerar plano de aula com IA: " + e.message);
-      // Fallback para o estático se a IA falhar
-      setViewingLessonPlan({
-        title: lesson.title,
-        objectives: lesson.objectives,
-        theory: lesson.theory,
-        methodology: {
-          introduction: "Introdução ao tema e contextualização.",
-          development: lesson.methodology || "Desenvolvimento do conteúdo com exemplos práticos.",
-          conclusion: "Revisão dos pontos chave e reflexão."
-        },
-        suggestedActivity: lesson.reflectionQuestions?.join('\n') || "Atividade prática em sala."
+      const overrideDoc = await getDoc(doc(db, 'lesson_overrides', lesson.id));
+      if (overrideDoc.exists()) {
+        const data = overrideDoc.data();
+        setLessonTitleDraft(data.title || lesson.title);
+        setLessonTheoryDraft(data.theory || lesson.theory);
+      }
+    } catch (e) {
+      console.warn("Sem override salvo:", e);
+    }
+  };
+
+  const handleSaveLessonOverride = async () => {
+    if (!selectedLessonForEdit) return;
+    setIsSavingLesson(true);
+    try {
+      await setDoc(doc(db, 'lesson_overrides', selectedLessonForEdit.id), {
+        lesson_id: selectedLessonForEdit.id,
+        title: lessonTitleDraft,
+        theory: lessonTheoryDraft,
+        subject: selectedLessonForEdit.subject,
+        updated_at: serverTimestamp()
       });
+      alert("Aula salva e postada!");
+      setIsLessonEditorOpen(false);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `lesson_overrides/${selectedLessonForEdit.id}`);
     } finally {
-      setIsGeneratingPlan(false);
+      setIsSavingLesson(false);
+    }
+  };
+
+  const handleOpenActivityEditor = async (lesson: any) => {
+    setSelectedLessonForEdit(lesson);
+    setIsActivityEditorOpen(true);
+    setActivityQuestionsDraft([]);
+    
+    try {
+      // Find questions by topic or lesson_id
+      const q = query(collection(db, 'questions'), where('topic', '==', lesson.title), where('subject', '==', lesson.subject));
+      const snap = await getDocs(q);
+      const existingQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setActivityQuestionsDraft(existingQuestions);
+    } catch (e) {
+      console.warn("Erro ao buscar questões:", e);
+    }
+  };
+
+  const handleAddQuestionToDraft = async () => {
+    if (!newQuestion.question_text.trim()) return;
+    if (newQuestion.type === 'objective' && (!newQuestion.options.a || !newQuestion.options.b)) {
+      alert("Preencha ao menos duas opções.");
+      return;
+    }
+
+    const questionData = {
+      ...newQuestion,
+      subject: selectedLessonForEdit.subject,
+      topic: selectedLessonForEdit.topic || selectedLessonForEdit.title,
+      lesson_id: selectedLessonForEdit.id,
+      created_at: serverTimestamp()
+    };
+
+    try {
+      setIsSavingActivity(true);
+      const docRef = await addDoc(collection(db, 'questions'), questionData);
+      setActivityQuestionsDraft([...activityQuestionsDraft, { id: docRef.id, ...questionData }]);
+      setNewQuestion({
+        type: 'objective',
+        question_text: '',
+        options: { a: '', b: '', c: '', d: '', e: '' },
+        correct_option: 'a',
+        difficulty: 'Médio'
+      });
+
+      // Ensure activity doc exists
+      const actQ = query(collection(db, 'activities'), where('lesson_id', '==', selectedLessonForEdit.id));
+      const actSnap = await getDocs(actQ);
+      if (actSnap.empty) {
+        await addDoc(collection(db, 'activities'), {
+          lesson_id: selectedLessonForEdit.id,
+          title: `Atividade: ${selectedLessonForEdit.title}`,
+          teacher_subject: selectedLessonForEdit.subject,
+          created_at: serverTimestamp()
+        });
+        setSavedActivities([...savedActivities, selectedLessonForEdit.id]);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'questions');
+    } finally {
+      setIsSavingActivity(false);
+    }
+  };
+
+  const handleRemoveQuestionFromDraft = async (id: string) => {
+    if (!confirm("Excluir esta questão?")) return;
+    try {
+      await deleteDoc(doc(db, 'questions', id));
+      setActivityQuestionsDraft(activityQuestionsDraft.filter(q => q.id !== id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `questions/${id}`);
     }
   };
 
@@ -1592,6 +1695,16 @@ export const AdminDashboard: React.FC = () => {
            {/* ABAS: PLANO DE AULAS */}
            {activeTab === 'lessons_list' && (
               <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in">
+                 <div className="bg-amber-50 p-6 rounded-[32px] border border-amber-200 flex items-center gap-4 mb-4">
+                   <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
+                     <Pencil size={24}/>
+                   </div>
+                   <div>
+                     <h3 className="font-black text-amber-900 uppercase text-xs">Gestão Manual de Aulas</h3>
+                     <p className="text-amber-700 text-[10px] font-bold">Clique em uma aula para editar o conteúdo e criar atividades personalizadas.</p>
+                   </div>
+                 </div>
+
                  {curriculumData.map(grade => (
                     <div key={grade.id} className="space-y-4">
                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm ml-4">{grade.title} - {grade.description}</h3>
@@ -1603,23 +1716,21 @@ export const AdminDashboard: React.FC = () => {
                                    {b.lessons.filter(l => isSuper || l.subject === teacherSubject).map(l => (
                                       <div key={l.id} className="flex items-center gap-2">
                                         <button 
-                                          onClick={() => handleViewLessonPlan(l, grade.id)}
-                                          disabled={isGeneratingPlan}
+                                          onClick={() => handleOpenLessonEditor(l)}
                                           className="flex-1 text-left group transition-all"
                                         >
-                                          <div className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2 group-hover:bg-amber-50 group-hover:border-amber-200 group-hover:-translate-y-0.5 transition-all">
-                                             <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue mt-1.5 shrink-0 group-hover:bg-amber-500"></div>
-                                             <span className="whitespace-normal break-words leading-tight group-hover:text-amber-900">{l.title}</span>
+                                          <div className={`text-[10px] font-bold p-3 rounded-xl border flex items-start gap-2 group-hover:bg-amber-50 group-hover:border-amber-200 group-hover:-translate-y-0.5 transition-all ${savedActivities.includes(l.id) ? 'bg-green-50 border-green-100 text-green-700' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
+                                             <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${savedActivities.includes(l.id) ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                             <span className="whitespace-normal break-words leading-tight">{l.title}</span>
                                           </div>
                                         </button>
                                         <div className="flex gap-1 shrink-0">
                                           <button
-                                            onClick={() => handleGenerateAndSaveActivity(l)}
-                                            disabled={isGeneratingActivityFor === l.id || savedActivities.includes(l.id)}
-                                            className={`p-2 rounded-xl border transition-all ${savedActivities.includes(l.id) ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-slate-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'}`}
-                                            title={savedActivities.includes(l.id) ? 'Atividade já salva no banco' : 'Gerar Atividade com IA e Salvar'}
+                                            onClick={() => handleOpenActivityEditor(l)}
+                                            className={`p-2 rounded-xl border transition-all ${savedActivities.includes(l.id) ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'}`}
+                                            title="Editar Atividades"
                                           >
-                                            {isGeneratingActivityFor === l.id ? <Loader2 size={16} className="animate-spin" /> : savedActivities.includes(l.id) ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
+                                            <ListChecks size={16} />
                                           </button>
                                           {savedActivities.includes(l.id) && (
                                              <button
@@ -1728,6 +1839,193 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
       </main>
+
+      {/* MODAL: EDITOR DE AULA */}
+      {isLessonEditorOpen && selectedLessonForEdit && (
+        <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b bg-slate-50 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
+                  <BookOpen size={24}/>
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Editor de Conteúdo</h2>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">Personalize a teoria e o título da sua aula</p>
+                </div>
+              </div>
+              <button onClick={() => setIsLessonEditorOpen(false)} className="p-3 hover:bg-slate-200 rounded-2xl transition-colors"> <X size={24}/> </button>
+            </div>
+
+            <div className="p-8 space-y-6 overflow-y-auto" id="lesson-preview-area">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-2 block">Título da Aula (Público para alunos)</label>
+                <input 
+                  type="text" 
+                  value={lessonTitleDraft} 
+                  onChange={e => setLessonTitleDraft(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-2 block">Conteúdo Teórico / Texto da Aula</label>
+                <textarea 
+                  rows={12}
+                  value={lessonTheoryDraft}
+                  onChange={e => setLessonTheoryDraft(e.target.value)}
+                  className="w-full p-6 bg-slate-50 border-none rounded-3xl font-medium text-slate-600 outline-none focus:ring-2 focus:ring-amber-500 transition-all leading-relaxed"
+                  placeholder="Escreva aqui o conteúdo que os alunos irão ler..."
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t bg-slate-50 flex gap-4 shrink-0">
+              <button 
+                onClick={() => exportToPDF('lesson-preview-area', `Aula_${lessonTitleDraft}`)}
+                className="px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 hover:bg-slate-100 transition-all"
+              >
+                <Download size={18}/> Baixar PDF
+              </button>
+              <div className="flex-1" />
+              <button 
+                onClick={handleSaveLessonOverride}
+                disabled={isSavingLesson}
+                className="px-10 py-4 bg-tocantins-blue text-white rounded-2xl font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
+              >
+                {isSavingLesson ? <Loader2 size={20} className="animate-spin" /> : <Save size={20}/>} SALVAR E POSTAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITOR DE ATIVIDADES */}
+      {isActivityEditorOpen && selectedLessonForEdit && (
+        <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-6xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[95vh]">
+            <div className="p-8 border-b bg-slate-50 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center">
+                  <ListChecks size={24}/>
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Criação de Atividades</h2>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Aula: {selectedLessonForEdit.title}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsActivityEditorOpen(false)} className="p-3 hover:bg-slate-200 rounded-2xl transition-colors"> <X size={24}/> </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row divide-x">
+              {/* Formulário de Nova Questão */}
+              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-6 bg-slate-50/50">
+                <h3 className="font-black text-slate-800 uppercase text-xs mb-4">Nova Questão</h3>
+                
+                <div className="flex gap-2 p-1 bg-white rounded-2xl border mb-4">
+                  <button 
+                    onClick={() => setNewQuestion({...newQuestion, type: 'objective'})}
+                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'objective' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}
+                  >
+                    Múltipla Escolha
+                  </button>
+                  <button 
+                    onClick={() => setNewQuestion({...newQuestion, type: 'discursive'})}
+                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'discursive' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}
+                  >
+                    Dissertativa
+                  </button>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-2 block">Enunciado</label>
+                  <textarea 
+                    rows={4}
+                    value={newQuestion.question_text}
+                    onChange={e => setNewQuestion({...newQuestion, question_text: e.target.value})}
+                    className="w-full p-4 bg-white border rounded-2xl text-sm font-medium outline-none focus:border-indigo-500"
+                    placeholder="Ex: Qual o principal conceito de..."
+                  />
+                </div>
+
+                {newQuestion.type === 'objective' && (
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2 block">Opções</label>
+                    {['a', 'b', 'c', 'd', 'e'].map(opt => (
+                      <div key={opt} className="flex gap-2">
+                        <button 
+                          onClick={() => setNewQuestion({...newQuestion, correct_option: opt})}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center font-black uppercase shrink-0 transition-all ${newQuestion.correct_option === opt ? 'bg-green-500 text-white shadow-md' : 'bg-white border text-slate-300'}`}
+                        >
+                          {opt}
+                        </button>
+                        <input 
+                          type="text" 
+                          placeholder={`Opção ${opt.toUpperCase()}...`}
+                          value={newQuestion.options[opt]}
+                          onChange={e => setNewQuestion({
+                            ...newQuestion, 
+                            options: { ...newQuestion.options, [opt]: e.target.value }
+                          })}
+                          className="flex-1 p-3 bg-white border rounded-xl text-xs outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button 
+                  onClick={handleAddQuestionToDraft}
+                  disabled={isSavingActivity || !newQuestion.question_text.trim()}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:shadow-indigo-200 transition-all disabled:opacity-50"
+                >
+                  Adicionar Questão
+                </button>
+              </div>
+
+              {/* Lista de Questões Já Adicionadas */}
+              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-4">
+                 <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-black text-slate-800 uppercase text-xs">Questões Criadas ({activityQuestionsDraft.length})</h3>
+                    <button 
+                      onClick={() => exportToPDF('activity-preview-area', `Atividade_${selectedLessonForEdit.title}`)}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    >
+                      <Download size={18}/>
+                    </button>
+                 </div>
+                 <div id="activity-preview-area" className="space-y-4">
+                   {activityQuestionsDraft.length === 0 ? (
+                     <div className="py-20 text-center opacity-30 flex flex-col items-center">
+                       <ClipboardEdit size={48} className="mb-4 text-slate-300" />
+                       <p className="text-[10px] font-bold uppercase tracking-widest">Nenhuma questão adicionada ainda.</p>
+                     </div>
+                   ) : (
+                     activityQuestionsDraft.map((q, i) => (
+                       <div key={q.id || i} className="group relative bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-all">
+                          <div className="flex justify-between gap-4">
+                             <span className="bg-slate-900 text-white w-6 h-6 rounded-md flex items-center justify-center font-black text-[10px] shrink-0">{i+1}</span>
+                             <p className="text-[11px] font-bold text-slate-700 flex-1 leading-relaxed">{q.question_text}</p>
+                             <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="text-red-300 hover:text-red-500 transition-colors shrink-0"> <Trash2 size={14}/> </button>
+                          </div>
+                          {q.type === 'objective' && (
+                            <div className="mt-3 grid grid-cols-1 gap-1 pl-10">
+                              {Object.entries(q.options || {}).filter(([k,v]) => v).map(([k, v]) => (
+                                <div key={k} className={`text-[9px] font-medium p-2 rounded-lg ${q.correct_option === k ? 'bg-green-50 text-green-700 border border-green-100' : 'text-slate-400'}`}>
+                                  <span className="uppercase font-black mr-2">{k}:</span> {v as string}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                       </div>
+                     ))
+                   )}
+                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* OVERLAY DE CARREGAMENTO DA IA */}
       {isGeneratingPlan && (

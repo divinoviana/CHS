@@ -5,10 +5,12 @@ import { curriculumData } from '../data';
 import { ActivityInput } from '../components/ActivityInput';
 import { SubmissionBar, SubmissionItem } from '../components/SubmissionBar';
 import { ArrowLeft, BookOpen, PenTool, Sparkles, Home, Loader2, ListChecks, HelpCircle, CheckCircle2 } from 'lucide-react';
-import { evaluateActivities, AIResponse, generateLessonActivity, LessonActivity } from '../services/aiService';
+import { evaluateActivities, AIResponse, LessonActivity } from '../services/aiService';
 import { AIFeedbackModal } from '../components/AIFeedbackModal';
 import { useAuth } from '../context/AuthContext';
 import { VisualActivityRenderer } from '../components/VisualActivityRenderer';
+import { exportToPDF } from '../lib/pdfUtils';
+import { Download } from 'lucide-react';
 
 export const LessonView: React.FC = () => {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -16,6 +18,7 @@ export const LessonView: React.FC = () => {
   const { student, isLoading } = useAuth();
 
   const [lessonActivity, setLessonActivity] = useState<LessonActivity | null>(null);
+  const [lessonOverride, setLessonOverride] = useState<any>(null);
   const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   
@@ -43,8 +46,15 @@ export const LessonView: React.FC = () => {
       setIsActivityLoading(true);
       try {
         const { db, handleFirestoreError, OperationType } = await import('../firebase');
-        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const { collection, query, where, getDocs, getDoc, doc } = await import('firebase/firestore');
         
+        // 0. Fetch lesson override
+        const overrideRef = doc(db, 'lesson_overrides', lessonId!);
+        const overrideSnap = await getDoc(overrideRef);
+        if (overrideSnap.exists()) {
+          setLessonOverride(overrideSnap.data());
+        }
+
         // 1. Fetch activity
         const q = query(collection(db, 'activities'), where('lesson_id', '==', lessonId));
         const actSnapshot = await getDocs(q);
@@ -64,19 +74,23 @@ export const LessonView: React.FC = () => {
         const actData = { id: actDoc.id, ...actDoc.data() } as any;
 
         // 2. Fetch questions
-        // In Firestore, we query the questions collection by topic and subject
-        const q2 = query(
-          collection(db, 'questions'),
-          where('topic', '==', foundLesson.title),
-          where('subject', '==', foundLesson.subject)
-        );
-        
-        const qSnapshot = await getDocs(q2);
+        let q2 = query(collection(db, 'questions'), where('lesson_id', '==', lessonId));
+        let qSnapshot = await getDocs(q2);
+
+        if (qSnapshot.empty) {
+          // Fallback para busca por tópico (legado)
+          q2 = query(
+            collection(db, 'questions'),
+            where('topic', '==', foundLesson.title),
+            where('subject', '==', foundLesson.subject)
+          );
+          qSnapshot = await getDocs(q2);
+        }
 
         if (qSnapshot.empty) {
           // Se encontrou a atividade mas não encontrou as questões, gera o fallback
           const { generateFallbackActivity } = await import('../services/aiService');
-          const fallbackActivity = generateFallbackActivity(foundLesson.title, foundLesson.theory, foundLesson.questions);
+          const fallbackActivity = generateFallbackActivity(foundLesson.title, displayTheory, foundLesson.questions);
           setLessonActivity({
             ...fallbackActivity,
             dbActivityId: 'fallback' // ID temporário
@@ -149,6 +163,9 @@ export const LessonView: React.FC = () => {
 
   if (!foundLesson) return <div className="p-8 text-center">Aula não encontrada.</div>;
 
+  const displayTitle = lessonOverride?.title || foundLesson.title;
+  const displayTheory = lessonOverride?.theory || foundLesson.theory;
+
   const handleOptionSelect = (questionId: string, option: string) => {
     setAnswers(prev => ({ ...prev, [`obj-${questionId}`]: option }));
   };
@@ -192,43 +209,52 @@ export const LessonView: React.FC = () => {
       alert("Por favor, responda as atividades antes de finalizar.");
       return;
     }
-    
-    // Grade locally
-    const corrections: any[] = [];
-    let totalScore = 0;
-    
-    lessonActivity?.objectives.forEach(q => {
-      const ans = answers[`obj-${q.id}`];
-      const isCorrect = ans === q.correctOption;
-      if (isCorrect) totalScore += 10;
-      
-      corrections.push({
-        question: q.question,
-        studentAnswer: ans ? `Opção ${ans.toUpperCase()}: ${q.options[ans as keyof typeof q.options]}` : "Não respondida",
-        isCorrect,
-        score: isCorrect ? 10 : 0,
-        feedback: isCorrect ? "Correto!" : `Incorreto. A resposta correta era a opção ${q.correctOption?.toUpperCase()}.`
-      });
-    });
 
-    lessonActivity?.discursives.forEach(q => {
-      const ans = answers[`disc-${q.id}`];
-      corrections.push({
-        question: q.question,
-        studentAnswer: ans || "Não respondida",
-        isCorrect: false,
-        score: 0,
-        feedback: "Questão discursiva. Aguardando avaliação do professor."
-      });
-    });
-
-    const localAIData: AIResponse = {
-      generalComment: "Atividade enviada com sucesso! Suas questões objetivas foram corrigidas automaticamente. As questões discursivas serão avaliadas pelo seu professor.",
-      corrections
-    };
-
-    setAiData(localAIData);
+    setAiLoading(true);
     setIsAIModalOpen(true);
+    
+    try {
+      const qAndA = subData.map(s => ({ question: s.question, answer: s.answer }));
+      const evaluation = await evaluateActivities(displayTitle, displayTheory, qAndA);
+      setAiData(evaluation);
+    } catch (e: any) {
+      console.error("AI Evaluation error:", e);
+      // Fallback local correction
+      const corrections: any[] = [];
+      let totalScore = 0;
+      
+      lessonActivity?.objectives.forEach(q => {
+        const ans = answers[`obj-${q.id}`];
+        const isCorrect = ans === q.correctOption;
+        if (isCorrect) totalScore += 10;
+        
+        corrections.push({
+          question: q.question,
+          studentAnswer: ans ? `Opção ${ans.toUpperCase()}: ${q.options[ans as keyof typeof q.options]}` : "Não respondida",
+          isCorrect,
+          score: isCorrect ? 10 : 0,
+          feedback: isCorrect ? "Correto!" : `Incorreto. A resposta correta era a opção ${q.correctOption?.toUpperCase()}.`
+        });
+      });
+
+      lessonActivity?.discursives.forEach(q => {
+        const ans = answers[`disc-${q.id}`];
+        corrections.push({
+          question: q.question,
+          studentAnswer: ans || "Não respondida",
+          isCorrect: false,
+          score: 0,
+          feedback: "Questão discursiva salva para avaliação do professor."
+        });
+      });
+
+      setAiData({
+        generalComment: "Houve um erro na correção por IA, mas suas respostas foram enviadas. Suas questões objetivas foram corrigidas localmente.",
+        corrections
+      });
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   return (
@@ -246,7 +272,16 @@ export const LessonView: React.FC = () => {
                 <ArrowLeft className="w-4 h-4 mr-2" /> Grade
               </Link>
            </div>
-          <h1 className="text-3xl font-bold text-white">{foundLesson.title}</h1>
+          <div className="flex justify-between items-end">
+            <h1 className="text-3xl font-bold text-white">{displayTitle}</h1>
+            <button 
+              onClick={() => exportToPDF('lesson-printable-content', `Aula_${displayTitle}`)}
+              className="mb-1 p-3 bg-white/10 hover:bg-white/20 rounded-2xl text-white backdrop-blur-md transition-all border border-white/10"
+              title="Baixar Aula em PDF"
+            >
+              <Download size={20}/>
+            </button>
+          </div>
           {student && (
             <div className="flex items-center gap-2 mt-4 text-white/90 bg-white/10 w-fit px-4 py-2 rounded-full backdrop-blur-sm border border-white/20">
                <img src={student.photo_url} className="w-6 h-6 rounded-full object-cover" alt="User" />
@@ -256,7 +291,7 @@ export const LessonView: React.FC = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 max-w-4xl -mt-10 relative z-20">
+      <div className="container mx-auto px-4 max-w-4xl -mt-10 relative z-20" id="lesson-printable-content">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 md:p-10 mb-8">
           
           {/* SEÇÃO: TEORIA */}
@@ -264,8 +299,8 @@ export const LessonView: React.FC = () => {
             <h3 className="flex items-center text-2xl font-bold text-slate-800 mb-6 pb-4 border-b border-slate-100">
               <BookOpen className="w-7 h-7 mr-3 text-indigo-600" /> Teoria
             </h3>
-            <div className="bg-slate-50 p-6 rounded-2xl border-l-4 border-indigo-500 whitespace-pre-wrap text-slate-700 leading-relaxed">
-              {foundLesson.theory}
+            <div className="bg-slate-50 p-6 rounded-2xl border-l-4 border-indigo-500 whitespace-pre-wrap text-slate-700 leading-relaxed font-medium">
+              {displayTheory}
             </div>
           </div>
 
@@ -365,11 +400,11 @@ export const LessonView: React.FC = () => {
           studentName={student.name} 
           schoolClass={student.school_class} 
           submissionDate={getTodayString()} 
-          lessonTitle={foundLesson.title} 
+          lessonTitle={displayTitle} 
           subject={foundLesson.subject} 
           submissionData={getSubmissionData()} 
           aiData={aiData} 
-          theory={foundLesson.theory} 
+          theory={displayTheory} 
         />
       )}
     </div>
