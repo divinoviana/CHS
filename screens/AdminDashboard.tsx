@@ -153,7 +153,7 @@ export const AdminDashboard: React.FC = () => {
     
     setLoading(true);
     try {
-      const collectionsToClear = ['questions', 'activities', 'bimonthly_exams', 'messages', 'student_notes'];
+      const collectionsToClear = ['questions', 'activities', 'bimonthly_exams', 'messages', 'student_notes', 'submissions'];
       
       for (const colName of collectionsToClear) {
         const snapshot = await getDocs(collection(db, colName));
@@ -441,28 +441,33 @@ export const AdminDashboard: React.FC = () => {
     }
 
     if (selectedAccess === 'SUPER_ADMIN') {
-        if (email.trim() === 'divinoviana@gmail.com' && pass.trim() === '3614526312') {
+        if (email.trim().toLowerCase() === 'divinoviana@gmail.com' && pass.trim() === '3614526312') {
             try {
               // Tenta autenticar no Firebase Auth para garantir permissões de banco
-              await signInWithEmailAndPassword(auth, email.trim(), pass.trim());
+              const userCred = await signInWithEmailAndPassword(auth, email.trim(), pass.trim());
+              console.log("Super Admin logado com sucesso:", userCred.user.email);
               loginTeacher('SUPER_ADMIN');
               setActiveTab('submissions');
             } catch (authErr: any) {
               console.error("Erro na autenticação Firebase do Super Admin:", authErr);
-              setAuthError("Erro de autenticação no Firebase. Verifique se o usuário 'divinoviana@gmail.com' está cadastrado no console e se a senha no console é a mesma usada aqui.");
-              // No caso do Super Admin, permitimos entrar mesmo com erro de auth para que ele veja a interface,
-              // mas avisamos que o banco pode falhar.
-              loginTeacher('SUPER_ADMIN');
-              setActiveTab('submissions');
+              setAuthError(`Erro Crítico de Autenticação: O e-mail ${email} não pôde ser validado no Firebase. 
+              Verifique no Console do Firebase (Authentication) se este usuário existe e se a senha está correta.`);
+              
+              // Se falhar o Firebase Auth, NÃO permitimos entrar, pois o Firestore irá bloquear todas as ações.
+              setLoading(false);
+              return;
             }
         } else {
             alert("Credenciais de Super Admin incorretas.");
+            setLoading(false);
+            return;
         }
     } else {
         if (pass.trim() === ADMIN_PASSWORDS[selectedAccess as Subject]) {
           try {
             const teacherEmail = TEACHER_EMAILS[selectedAccess as Subject];
-            await signInWithEmailAndPassword(auth, teacherEmail, pass.trim());
+            const userCred = await signInWithEmailAndPassword(auth, teacherEmail, pass.trim());
+            console.log("Professor logado com sucesso:", userCred.user.email);
             loginTeacher(selectedAccess);
             setActiveTab('submissions');
           } catch (authErr: any) {
@@ -470,11 +475,13 @@ export const AdminDashboard: React.FC = () => {
             setAuthError(`Erro de Permissão: O e-mail ${TEACHER_EMAILS[selectedAccess as Subject]} não está autenticado no Firebase. 
             Acesse o Console do Firebase > Authentication e adicione este e-mail com a senha padrão.`);
             
-            // Para professores, NÃO permitimos entrar se a auth falhar, pois eles terão erros de permissão constantes.
-            // loginTeacher(selectedAccess); // Removido para evitar confusão
+            setLoading(false);
+            return;
           }
         } else {
           alert("Senha incorreta.");
+          setLoading(false);
+          return;
         }
     }
     setLoading(false);

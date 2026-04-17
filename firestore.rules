@@ -10,27 +10,19 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isTeacher() {
-      return isAuthenticated() && 
-        (request.auth.token.email == 'filosofia@frederico.edu.br' ||
-         request.auth.token.email == 'geografia@frederico.edu.br' ||
-         request.auth.token.email == 'historia@frederico.edu.br' ||
-         request.auth.token.email == 'sociologia@frederico.edu.br');
-    }
-
-    function isSuper() {
-      return isAuthenticated() && request.auth.token.email == "divinoviana@gmail.com";
-    }
-
-    function isDocAdmin() {
-      return isAuthenticated() && 
-             exists(/databases/$(database)/documents/students/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/students/$(request.auth.uid)).data.role == 'admin';
-    }
-
     function isAdmin() {
-      // Ordem importa: checks rápidos primeiro para evitar get() desnecessário
-      return isSuper() || isTeacher() || isDocAdmin();
+      return isAuthenticated() && (
+        (request.auth.token.email != null && (
+          request.auth.token.email.lower() == 'divinoviana@gmail.com' ||
+          request.auth.token.email.lower() == 'divino.viana@professor.to.gov.br' ||
+          request.auth.token.email.lower() == 'filosofia@frederico.edu.br' ||
+          request.auth.token.email.lower() == 'geografia@frederico.edu.br' ||
+          request.auth.token.email.lower() == 'historia@frederico.edu.br' ||
+          request.auth.token.email.lower() == 'sociologia@frederico.edu.br'
+        )) ||
+        (exists(/databases/$(database)/documents/students/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/students/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isOwner(userId) {
@@ -56,8 +48,6 @@ service cloud.firestore {
 
     match /students/{studentId} {
       allow read: if isAuthenticated();
-      // Proteção contra escalação de privilégios: apenas admin cria outros admins.
-      // Usuários comuns só podem criar seu próprio perfil como 'student'.
       allow create: if isAuthenticated() && isValidStudent(request.resource.data) && 
                     (isAdmin() || (isOwner(studentId) && request.resource.data.role == 'student'));
       allow update: if isAuthenticated() && isValidStudent(request.resource.data) && 
@@ -83,10 +73,6 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      // Regra de leitura solicitada:
-      // 1. Admin tem acesso total.
-      // 2. Estudantes podem ler mensagens onde são envolvidos.
-      // 3. Professores (não-estudantes) podem ler mensagens com disciplina (o app filtra a 'própria').
       allow read: if isAuthenticated() && (
         isAdmin() || 
         (request.auth.uid == resource.data.sender_id || request.auth.uid == resource.data.receiver_id) ||
