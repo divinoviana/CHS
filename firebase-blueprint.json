@@ -9,6 +9,7 @@
         "email": { "type": "string", "format": "email" },
         "grade": { "type": "string" },
         "school_class": { "type": "string" },
+        "password": { "type": "string" },
         "created_at": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "email", "grade", "school_class"]

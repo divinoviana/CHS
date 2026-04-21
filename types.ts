@@ -101,3 +101,15 @@ export interface ActivityAnswer {
   score?: number;
   feedback?: string;
 }
+
+export interface Student {
+  id: string;
+  name: string;
+  email: string;
+  grade: string;
+  school_class: string;
+  password?: string;
+  role: 'student' | 'admin';
+  photo_url?: string;
+  created_at?: any;
+}

@@ -4,6 +4,7 @@ import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPasswor
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
 import { subjectsInfo, ADMIN_PASSWORDS, TEACHER_EMAILS, curriculumData } from '../data';
+import { STUDENTS_SEED_DATA } from '../src/students_to_seed';
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -98,6 +99,8 @@ export const AdminDashboard: React.FC = () => {
   const [isActivityEditorOpen, setIsActivityEditorOpen] = useState(false);
   const [activityQuestionsDraft, setActivityQuestionsDraft] = useState<any[]>([]);
   const [isSavingActivity, setIsSavingActivity] = useState(false);
+
+  const [isSeedingStudents, setIsSeedingStudents] = useState(false);
   const [newQuestion, setNewQuestion] = useState<any>({
     type: 'objective',
     question_text: '',
@@ -670,6 +673,56 @@ export const AdminDashboard: React.FC = () => {
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, 'activities/questions');
     } finally { setLoading(false); }
+  };
+
+  const handleSeedStudents = async () => {
+    if (!isSuper || isSeedingStudents) return;
+    
+    const confirmSeed = window.confirm(`Deseja cadastrar ${STUDENTS_SEED_DATA.length} estudantes extraídos das imagens?`);
+    if (!confirmSeed) return;
+
+    setIsSeedingStudents(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const student of STUDENTS_SEED_DATA) {
+        try {
+          let grade = '1';
+          if (student.school_class.startsWith('2')) grade = '2';
+          if (student.school_class.startsWith('3')) grade = '3';
+
+          const q = query(collection(db, 'students'), where('email', '==', student.email));
+          const snapshot = await getDocs(q);
+          
+          if (snapshot.empty) {
+            const studentId = student.email.replace(/[^a-zA-Z0-9]/g, '_');
+            await setDoc(doc(db, 'students', studentId), {
+              name: student.name,
+              email: student.email,
+              password: student.password,
+              grade: grade,
+              school_class: student.school_class,
+              role: 'student',
+              created_at: serverTimestamp()
+            });
+            successCount++;
+          }
+        } catch (err) {
+          console.error(`Erro ao cadastrar ${student.email}:`, err);
+          errorCount++;
+        }
+      }
+      
+      alert(`Processo concluído!\nSucesso: ${successCount}\nErros: ${errorCount}`);
+      const studentsSnap = await getDocs(query(collection(db, 'students'), orderBy('name')));
+      setStudents(studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) {
+      console.error("Erro geral na migração:", err);
+      alert("Erro na migração. Verifique o console.");
+    } finally {
+      setIsSeedingStudents(false);
+    }
   };
 
   useEffect(() => {
@@ -1636,19 +1689,41 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: CARÔMETRO (ESTUDANTES) */}
            {activeTab === 'students' && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 animate-in fade-in">
-                  {filteredStudents.length === 0 ? <div className="col-span-full py-20 text-center text-slate-400 font-bold uppercase text-[10px]">Nenhum estudante cadastrado.</div> : 
-                    filteredStudents.map(st => (
-                      <button key={st.id} onClick={() => setSelectedStudent(st)} className="bg-white p-4 rounded-[32px] border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden text-left">
-                          <div className="w-full aspect-square rounded-2xl bg-slate-100 mb-4 overflow-hidden shadow-inner border-2 border-white">
-                             <StudentAvatar studentId={st.id} studentName={st.name} />
-                          </div>
-                          <h4 className="font-black text-slate-800 text-[10px] uppercase truncate px-1">{st.name}</h4>
-                          <p className="text-[8px] font-black text-tocantins-blue uppercase mt-1">Série: {st.grade}ª • Turma: {st.school_class}</p>
-                          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg shadow-sm border opacity-0 group-hover:opacity-100 transition-opacity"> <Settings size={12} className="text-slate-400"/> </div>
+              <div className="space-y-6 animate-in fade-in">
+                  {isSuper && (
+                    <div className="bg-white p-6 rounded-[32px] border shadow-sm flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <Upload className="text-tocantins-blue" size={24}/>
+                        <div>
+                          <h3 className="font-black text-slate-800 uppercase tracking-tighter text-sm">Migração de Dados</h3>
+                          <p className="text-slate-400 text-[10px] font-bold uppercase">Cadastrar estudantes extraídos das imagens anteriormente</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={handleSeedStudents}
+                        disabled={isSeedingStudents}
+                        className="bg-tocantins-blue hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        {isSeedingStudents ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
+                        Migrar Estudantes ({STUDENTS_SEED_DATA.length})
                       </button>
-                    ))
-                  }
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                    {filteredStudents.length === 0 ? <div className="col-span-full py-20 text-center text-slate-400 font-bold uppercase text-[10px]">Nenhum estudante cadastrado.</div> : 
+                      filteredStudents.map(st => (
+                        <button key={st.id} onClick={() => setSelectedStudent(st)} className="bg-white p-4 rounded-[32px] border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden text-left">
+                            <div className="w-full aspect-square rounded-2xl bg-slate-100 mb-4 overflow-hidden shadow-inner border-2 border-white">
+                               <StudentAvatar studentId={st.id} studentName={st.name} />
+                            </div>
+                            <h4 className="font-black text-slate-800 text-[10px] uppercase truncate px-1">{st.name}</h4>
+                            <p className="text-[8px] font-black text-tocantins-blue uppercase mt-1">Série: {st.grade}ª • Turma: {st.school_class}</p>
+                            <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg shadow-sm border opacity-0 group-hover:opacity-100 transition-opacity"> <Settings size={12} className="text-slate-400"/> </div>
+                        </button>
+                      ))
+                    }
+                  </div>
               </div>
            )}
 
