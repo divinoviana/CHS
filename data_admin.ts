@@ -17,7 +17,7 @@ export const TEACHER_EMAILS: Record<Subject, string> = {
 
 export const TEACHER_INFO = {
   name: "Prof. Me. Divino Ribeiro Viana",
-  role: "Docente Responsável",
+  role: "Sistema criado por",
   institution: "Colégio Estadual Frederico Pedreira Neto",
   department: "Ciências Humanas e Sociais Aplicadas",
   email: "divino.viana@professor.to.gov.br",

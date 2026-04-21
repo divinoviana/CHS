@@ -57,7 +57,7 @@ function AppContent() {
           </div>
           <div className="text-center text-xs space-y-1">
             <p>© 2026 {TEACHER_INFO.department} - Tocantins</p>
-            <p>{TEACHER_INFO.role}: <span className="text-slate-200">{TEACHER_INFO.name}</span></p>
+            <p>{TEACHER_INFO.role}: <a href="http://lattes.cnpq.br/7639474934278364" target="_blank" rel="noopener noreferrer" className="text-slate-200 hover:text-tocantins-yellow transition-colors">{TEACHER_INFO.name}</a></p>
           </div>
         </div>
       </footer>
