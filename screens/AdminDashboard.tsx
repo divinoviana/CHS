@@ -87,6 +87,7 @@ export const AdminDashboard: React.FC = () => {
   
   // Atividades Salvas
   const [savedActivities, setSavedActivities] = useState<string[]>([]);
+  const [activityBank, setActivityBank] = useState<any[]>([]);
   const [isGeneratingActivityFor, setIsGeneratingActivityFor] = useState<string | null>(null);
   const [questionBank, setQuestionBank] = useState<any[]>([]);
 
@@ -111,7 +112,7 @@ export const AdminDashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (activeTab === 'lessons_list') {
+    if (activeTab === 'lessons_list' || activeTab === 'question_bank') {
       fetchSavedActivities();
     }
     if (activeTab === 'question_bank') {
@@ -121,9 +122,14 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchSavedActivities = async () => {
     try {
-      const q = query(collection(db, 'activities'), where('subject', '==', isSuper ? 'all' : teacherSubject));
+      let q = query(collection(db, 'activities'), orderBy('created_at', 'desc'));
+      if (!isSuper && teacherSubject) {
+        q = query(collection(db, 'activities'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
+      }
       const snap = await getDocs(q);
-      setSavedActivities(snap.docs.map(doc => doc.data().lesson_id));
+      const activities = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      setActivityBank(activities);
+      setSavedActivities(activities.map((a: any) => a.lesson_id));
     } catch (e) {
       console.error("Erro ao buscar atividades salvas:", e);
     }
@@ -592,6 +598,61 @@ export const AdminDashboard: React.FC = () => {
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `questions/${id}`);
     }
+  };
+
+  const handleDownloadActivity = (activity: any) => {
+    const questions = questionBank.filter(q => q.lesson_id === activity.lesson_id || q.topic === activity.title.replace('Atividade: ', ''));
+    
+    const printDiv = document.createElement('div');
+    printDiv.id = 'temp-print-activity';
+    printDiv.style.position = 'fixed';
+    printDiv.style.top = '-10000px';
+    printDiv.style.left = '-10000px';
+    printDiv.style.width = '210mm';
+    printDiv.style.backgroundColor = 'white';
+    printDiv.style.color = 'black';
+    printDiv.style.padding = '20mm';
+    printDiv.style.fontFamily = 'Arial, sans-serif';
+    
+    printDiv.innerHTML = `
+      <div style="border: 2px solid black; padding: 20px; margin-bottom: 30px; text-align: center;">
+        <h1 style="font-size: 28px; text-transform: uppercase; margin: 0;">${activity.title}</h1>
+        <p style="font-size: 14px; margin-top: 10px;">${activity.subject} • Banco de Atividades Portal Tocantins</p>
+      </div>
+      <div style="margin-bottom: 40px; display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+        <span><strong>Professor(a):</strong> ________________________</span>
+        <span><strong>Data:</strong> ___/___/___</span>
+      </div>
+      ${questions.length === 0 ? '<p>Nenhuma questão vinculada a esta atividade.</p>' : questions.map((q, i) => `
+        <div style="margin-bottom: 40px; page-break-inside: avoid;">
+          <p style="font-weight: bold; margin-bottom: 15px;">Questão ${i+1} (${q.type === 'objective' ? 'Objetiva' : 'Discursiva'} - ${q.difficulty})</p>
+          <div style="font-size: 16px; line-height: 1.6;">${q.question_text}</div>
+          ${q.type === 'objective' && q.options ? `
+            <div style="margin-top: 20px; margin-left: 20px; display: grid; grid-template-columns: 1fr; gap: 10px;">
+              ${Object.entries(q.options).filter(([_, v]) => v).map(([k, v]) => `
+                <div style="display: flex; gap: 10px;">
+                  <span>(${k.toUpperCase()})</span>
+                  <span>${v}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div style="margin-top: 50px; border-bottom: 1px solid #ccc; height: 100px;"></div>'}
+        </div>
+      `).join('')}
+      <div style="margin-top: 50px; font-size: 10px; color: #666; text-align: center; border-top: 1px dotted #ccc; padding-top: 10px;">
+        Gerado pelo Portal de Ciências Humanas - Tocantins
+      </div>
+    `;
+    
+    document.body.appendChild(printDiv);
+    
+    setTimeout(async () => {
+      try {
+        await exportToPDF('temp-print-activity', activity.title);
+      } finally {
+        document.body.removeChild(printDiv);
+      }
+    }, 500);
   };
 
   const loadTeacherProfile = async () => {
@@ -1482,7 +1543,7 @@ export const AdminDashboard: React.FC = () => {
             <School size={40} className="text-slate-900" />
           </div>
           <h1 className="text-lg font-black tracking-tighter uppercase leading-none">
-            Gênesis de <br/> <span className="text-tocantins-yellow italic">Biologia</span>
+            Ciências <br/> <span className="text-tocantins-yellow italic">Humanas</span>
           </h1>
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">Painel do Educador</p>
         </div>
@@ -1523,7 +1584,7 @@ export const AdminDashboard: React.FC = () => {
           </button>
           
           <div className="animate-in fade-in slide-in-from-bottom-4 delay-500">
-            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">CIEI - Araguaína</p>
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Portal Tocantins</p>
             <p className="text-[8px] font-medium text-slate-600">
               Sistema criado por: Prof. Me. Divino Ribeiro Viana
               <br/>
@@ -1660,17 +1721,65 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                  </div>
 
-                 <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm transition-colors">
-                    <div className="flex justify-between items-center mb-4">
-                      <div>
-                        <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Banco de Questões</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Aqui estão todas as questões geradas e salvas no banco de dados.</p>
-                      </div>
-                    </div>
-                    
-                    {questionBank.length === 0 ? (
-                      <div className="text-center py-10 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 font-bold">Nenhuma questão no banco. Use o Plano de Aulas para criar novas atividades.</div>
-                    ) : (
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm transition-colors mb-8">
+                     <div className="flex justify-between items-center mb-6">
+                       <div>
+                         <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Atividades por Área</h2>
+                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Atividades completas salvas no banco para a disciplina de {isSuper ? 'Geral' : teacherSubject}.</p>
+                       </div>
+                       <div className="text-xs font-black bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-4 py-2 rounded-xl uppercase"> {activityBank.length} Atividades </div>
+                     </div>
+
+                     {activityBank.length === 0 ? (
+                       <div className="text-center py-10 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 font-bold italic transition-colors">Nenhuma atividade completa registrada.</div>
+                     ) : (
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         {activityBank.map((act) => (
+                           <div key={act.id} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group hover:shadow-md transition-all">
+                              <div className="flex justify-between items-start mb-4 transition-colors">
+                                <div>
+                                  <h3 className="font-black text-slate-800 dark:text-white uppercase text-sm leading-tight mb-2 tracking-tight">{act.title}</h3>
+                                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                                     <Library size={12}/> {act.subject} • {new Date(act.created_at?.toDate ? act.created_at.toDate() : act.created_at).toLocaleDateString()}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                   <button onClick={() => handleDownloadActivity(act)} className="p-2 bg-white dark:bg-slate-800 text-blue-500 rounded-lg shadow-sm border border-blue-50 dark:border-blue-900/30 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer" title="Download PDF"> <Download size={14}/> </button>
+                                   <button 
+                                      onClick={() => {
+                                        const lesson = curriculumData.flatMap(g => g.bimesters.flatMap(b => b.lessons)).find(l => l.id === act.lesson_id);
+                                        if (lesson) handleOpenActivityEditor(lesson);
+                                        else alert("Aula não encontrada no currículo local.");
+                                      }} 
+                                      className="p-2 bg-white dark:bg-slate-800 text-amber-500 rounded-lg shadow-sm border border-amber-50 dark:border-amber-900/30 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all cursor-pointer" 
+                                      title="Editar"
+                                   > 
+                                      <Pencil size={14}/> 
+                                   </button>
+                                   <button onClick={() => handleDeleteActivity(act.lesson_id)} className="p-2 bg-white dark:bg-slate-800 text-red-500 rounded-lg shadow-sm border border-red-50 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer" title="Excluir"> <Trash2 size={14}/> </button>
+                                </div>
+                              </div>
+                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest bg-white dark:bg-slate-900 w-fit px-3 py-1 rounded-full shadow-inner border border-slate-100 dark:border-slate-800 transition-colors">
+                                {questionBank.filter(q => q.lesson_id === act.lesson_id || q.topic === act.title.replace('Atividade: ', '')).length} Questões
+                              </p>
+                           </div>
+                         ))}
+                       </div>
+                     )}
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm transition-colors">
+                     <div className="flex justify-between items-center mb-6">
+                       <div>
+                         <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Questões Individuais</h2>
+                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Banco de questões avulsas ou vinculadas.</p>
+                       </div>
+                       <div className="text-xs font-black bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-4 py-2 rounded-xl uppercase"> {questionBank.length} Questões </div>
+                     </div>
+
+                     {questionBank.length === 0 ? (
+                       <div className="text-center py-10 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 font-bold">Nenhuma questão no banco. Use o Plano de Aulas para criar novas atividades.</div>
+                     ) : (
                       <div className="space-y-4">
                         {questionBank.map((q) => (
                           <div key={q.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 relative group overflow-hidden transition-colors">
