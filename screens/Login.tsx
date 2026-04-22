@@ -156,43 +156,43 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
-      <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-md border border-slate-200">
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 p-4 font-sans transition-colors duration-300">
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800 transition-colors duration-300">
         <div className="text-center mb-8">
-          <div className="bg-tocantins-blue w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-100">
-            <GraduationCap className="w-10 h-10 text-white" />
+          <div className="bg-tocantins-blue dark:bg-tocantins-yellow w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-100 dark:shadow-none">
+            <GraduationCap className="w-10 h-10 text-white dark:text-slate-950" />
           </div>
-          <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
+          <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
             {googleUserPending ? 'Completar Perfil' : isRegistering ? 'Novo Cadastro' : 'Portal do Aluno'}
           </h2>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Ciências Humanas - Tocantins</p>
+          <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Ciências Humanas - Tocantins</p>
         </div>
 
         {googleUserPending ? (
           <form onSubmit={handleCompleteGoogleRegistration} className="space-y-6">
             <div className="text-center mb-6">
-              <img src={googleUserPending.photoURL} className="w-20 h-20 rounded-full mx-auto mb-3 border-4 border-tocantins-blue shadow-lg" alt="Google Profile" />
-              <p className="text-sm font-bold text-slate-700">Olá, {googleUserPending.displayName}!</p>
-              <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mt-1">Selecione sua turma para continuar</p>
+              <img src={googleUserPending.photoURL} className="w-20 h-20 rounded-full mx-auto mb-3 border-4 border-tocantins-blue dark:border-tocantins-yellow shadow-lg" alt="Google Profile" />
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Olá, {googleUserPending.displayName}!</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest mt-1">Selecione sua turma para continuar</p>
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-                <select className="w-full p-4 bg-slate-50 border rounded-2xl text-sm outline-none" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}>
+                <select className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl text-sm outline-none dark:text-white transition-colors" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}>
                   <option value="1">1ª Série</option>
                   <option value="2">2ª Série</option>
                   <option value="3">3ª Série</option>
                 </select>
-                <select required className="w-full p-4 bg-slate-50 border rounded-2xl text-sm outline-none" value={formData.school_class} onChange={e => setFormData({...formData, school_class: e.target.value})}>
+                <select required className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl text-sm outline-none dark:text-white transition-colors" value={formData.school_class} onChange={e => setFormData({...formData, school_class: e.target.value})}>
                   <option value="">Turma</option>
                   {getClassesByGrade(formData.grade).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
             </div>
 
-            <button disabled={loading} className="w-full bg-tocantins-blue text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-100 flex justify-center items-center gap-2 cursor-pointer active:scale-95 transition-all">
+            <button disabled={loading} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-100 dark:shadow-none flex justify-center items-center gap-2 cursor-pointer active:scale-95 transition-all">
               {loading ? <Loader2 className="animate-spin" /> : 'Concluir Cadastro'}
             </button>
             
-            <button type="button" onClick={() => setGoogleUserPending(null)} className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4 hover:text-red-500 transition-colors">
+            <button type="button" onClick={() => setGoogleUserPending(null)} className="w-full text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-4 hover:text-red-500 transition-colors">
               Cancelar e voltar
             </button>
           </form>
@@ -203,29 +203,29 @@ export const Login: React.FC = () => {
                 type="button"
                 onClick={handleGoogleLogin}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+                className="w-full flex items-center justify-center gap-3 p-4 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95"
               >
-                <Chrome className="w-5 h-5 text-tocantins-blue" />
+                <Chrome className="w-5 h-5 text-tocantins-blue dark:text-tocantins-yellow" />
                 Entrar com Google
               </button>
               
               <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-                <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300"><span className="bg-white px-4">ou use seu e-mail</span></div>
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
+                <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300 dark:text-slate-600"><span className="bg-white dark:bg-slate-900 px-4 transition-colors">ou use seu e-mail</span></div>
               </div>
             </div>
 
             <form onSubmit={handleAuth} className="space-y-4">
               {isRegistering && (
                  <div className="space-y-3">
-                    <input required placeholder="Nome Completo" className="w-full p-4 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                    <input required placeholder="Nome Completo" className="w-full p-4 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                     <div className="grid grid-cols-2 gap-3">
-                        <select className="w-full p-4 bg-slate-50 border rounded-2xl text-sm outline-none" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}>
+                        <select className="w-full p-4 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none transition-colors" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}>
                           <option value="1">1ª Série</option>
                           <option value="2">2ª Série</option>
                           <option value="3">3ª Série</option>
                         </select>
-                        <select required className="w-full p-4 bg-slate-50 border rounded-2xl text-sm outline-none" value={formData.school_class} onChange={e => setFormData({...formData, school_class: e.target.value})}>
+                        <select required className="w-full p-4 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none transition-colors" value={formData.school_class} onChange={e => setFormData({...formData, school_class: e.target.value})}>
                           <option value="">Turma</option>
                           {getClassesByGrade(formData.grade).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
@@ -233,7 +233,7 @@ export const Login: React.FC = () => {
 
                     <div className="space-y-2">
                       <div className="flex gap-2">
-                        <label className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 rounded-2xl border-dashed border-2 border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer text-[10px] font-black text-slate-500 uppercase">
+                        <label className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase">
                           <Upload size={16} /> Arquivo
                           <input type="file" accept="image/*" className="hidden" onChange={e => {
                             const file = e.target.files?.[0];
@@ -244,14 +244,14 @@ export const Login: React.FC = () => {
                             }
                           }} />
                         </label>
-                        <button type="button" onClick={startCamera} className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 rounded-2xl border-dashed border-2 border-slate-200 hover:bg-slate-100 transition-colors text-[10px] font-black text-slate-500 uppercase">
+                        <button type="button" onClick={startCamera} className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl border-dashed border-2 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase">
                           <Camera size={16} /> Câmera
                         </button>
                       </div>
                       
                       {photo && !showCamera && (
                         <div className="relative w-20 h-20 mx-auto group">
-                          <img src={photo} className="w-full h-full object-cover rounded-2xl border-2 border-tocantins-blue" />
+                          <img src={photo} className="w-full h-full object-cover rounded-2xl border-2 border-tocantins-blue dark:border-tocantins-yellow" />
                           <button type="button" onClick={() => setPhoto(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg">
                             <X size={12} />
                           </button>
@@ -281,22 +281,22 @@ export const Login: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="relative">
-                  <input required type="email" placeholder="E-mail" className="w-full p-4 pl-12 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                  <User className="absolute left-4 top-4 text-slate-300" size={18} />
+                  <input required type="email" placeholder="E-mail" className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  <User className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
                 </div>
                 <div className="relative">
-                  <input required type="password" placeholder="Senha" className="w-full p-4 pl-12 bg-slate-50 border rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-                  <Lock className="absolute left-4 top-4 text-slate-300" size={18} />
+                  <input required type="password" placeholder="Senha" className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                  <Lock className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
                 </div>
               </div>
 
-              <button disabled={loading} className="w-full bg-tocantins-blue text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-100 flex justify-center items-center gap-2 cursor-pointer active:scale-95 transition-all">
+              <button disabled={loading} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-100 dark:shadow-none flex justify-center items-center gap-2 cursor-pointer active:scale-95 transition-all">
                 {loading ? <Loader2 className="animate-spin" /> : isRegistering ? 'Criar Minha Conta' : 'Entrar no Portal'}
               </button>
             </form>
 
-            <div className="mt-8 text-center border-t pt-6">
-              <button onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black text-slate-400 hover:text-tocantins-blue uppercase tracking-widest transition-colors cursor-pointer">
+            <div className="mt-8 text-center border-t dark:border-slate-800 pt-6">
+              <button onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow uppercase tracking-widest transition-colors cursor-pointer">
                 {isRegistering ? 'Já tenho uma conta? Fazer Login' : 'Não tem conta? Registre-se aqui'}
               </button>
             </div>

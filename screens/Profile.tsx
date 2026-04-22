@@ -62,35 +62,35 @@ export const Profile: React.FC = () => {
   if (!student) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans p-4">
-      <div className="container mx-auto max-w-md bg-white rounded-[40px] shadow-xl border border-slate-200 overflow-hidden mt-8">
-        <div className="p-6 border-b flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans p-4 transition-colors duration-300">
+      <div className="container mx-auto max-w-md bg-white dark:bg-slate-900 rounded-[40px] shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden mt-8 transition-colors duration-300">
+        <div className="p-6 border-b dark:border-slate-800 flex items-center justify-between">
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full dark:text-slate-400">
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Meu Perfil</h2>
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-slate-100">Meu Perfil</h2>
           <div className="w-8" />
         </div>
 
         <div className="p-8 space-y-8 text-center">
           <div className="relative inline-block group">
-            <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-tocantins-blue shadow-lg">
+            <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-tocantins-blue dark:border-tocantins-yellow shadow-lg">
               <img src={newPhoto || student.photo_url} className="w-full h-full object-cover" />
             </div>
             {loading && (
-              <div className="absolute inset-0 bg-white/60 flex items-center justify-center rounded-[32px]">
-                <Loader2 className="animate-spin text-tocantins-blue" />
+              <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 flex items-center justify-center rounded-[32px]">
+                <Loader2 className="animate-spin text-tocantins-blue dark:text-tocantins-yellow" />
               </div>
             )}
           </div>
 
           <div className="space-y-1">
-            <h3 className="text-xl font-black text-slate-800 uppercase">{student.name}</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{student.grade}ª Série • {student.school_class}</p>
+            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase">{student.name}</h3>
+            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{student.grade}ª Série • {student.school_class}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="flex items-center justify-center gap-2 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 hover:border-tocantins-blue transition-all cursor-pointer text-[10px] font-black uppercase">
+            <label className="flex items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-all cursor-pointer text-[10px] font-black uppercase dark:text-slate-300">
               <Upload size={16} /> Arquivo
               <input type="file" accept="image/*" className="hidden" onChange={e => {
                 const file = e.target.files?.[0];
@@ -101,13 +101,13 @@ export const Profile: React.FC = () => {
                 }
               }} />
             </label>
-            <button onClick={startCamera} className="flex items-center justify-center gap-2 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 hover:border-tocantins-blue transition-all text-[10px] font-black uppercase">
+            <button onClick={startCamera} className="flex items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-all text-[10px] font-black uppercase dark:text-slate-300">
               <Camera size={16} /> Câmera
             </button>
           </div>
 
           {newPhoto && (
-            <button onClick={handleSave} disabled={loading} className="w-full bg-green-600 text-white p-5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-green-100 flex items-center justify-center gap-2 transition-all">
+            <button onClick={handleSave} disabled={loading} className="w-full bg-green-600 dark:bg-green-700 text-white p-5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-green-100 dark:shadow-none flex items-center justify-center gap-2 transition-all cursor-pointer">
               {loading ? <Loader2 className="animate-spin" /> : <Save size={18} />}
               Salvar Nova Foto
             </button>

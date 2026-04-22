@@ -2,6 +2,7 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Header } from './components/Header';
 import { Home } from './screens/Home';
 import { GradeView } from './screens/GradeView';
@@ -23,7 +24,7 @@ const StudentRoute = ({ children }: { children?: React.ReactNode }) => {
 
 function AppContent() {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans transition-colors duration-300">
       <Header />
       <main className="flex-grow">
         <Routes>
@@ -55,9 +56,9 @@ function AppContent() {
               </Link>
             </div>
           </div>
-          <div className="text-center text-xs space-y-1">
+          <div className="text-center text-xs space-y-2 opacity-80">
             <p>© 2026 {TEACHER_INFO.department} - Tocantins</p>
-            <p>{TEACHER_INFO.role}: <a href="http://lattes.cnpq.br/7639474934278364" target="_blank" rel="noopener noreferrer" className="text-slate-200 hover:text-tocantins-yellow transition-colors">{TEACHER_INFO.name}</a></p>
+            <p>{TEACHER_INFO.role}: <a href="http://lattes.cnpq.br/7639474934278364" target="_blank" rel="noopener noreferrer" className="text-slate-100 font-black hover:text-tocantins-yellow transition-all underline decoration-slate-700 underline-offset-4 decoration-2">{TEACHER_INFO.name}</a></p>
           </div>
         </div>
       </footer>
@@ -67,11 +68,13 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

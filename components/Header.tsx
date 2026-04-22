@@ -1,15 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Home, History, MessageCircle, Settings } from 'lucide-react';
+import { BookOpen, Home, History, MessageCircle, Settings, Sun, Moon } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export const Header: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { student, logoutStudent } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -58,6 +60,14 @@ export const Header: React.FC = () => {
 
         {student && (
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg bg-white/10 text-slate-300 hover:bg-white/20 transition-colors"
+              title={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
+            >
+              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            </button>
+
             <Link 
               to="/contact" 
               className={`relative p-2 rounded-lg transition-colors ${location.pathname === '/contact' ? 'bg-tocantins-blue text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}

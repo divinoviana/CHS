@@ -74,8 +74,8 @@ export const Contact: React.FC = () => {
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-10 h-10 border-4 border-slate-200 border-t-tocantins-blue rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+        <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 border-t-tocantins-blue dark:border-t-tocantins-yellow rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -83,35 +83,35 @@ export const Contact: React.FC = () => {
   if (!student) return null;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl min-h-[85vh] font-sans">
+    <div className="container mx-auto px-4 py-8 max-w-4xl min-h-[85vh] font-sans transition-colors duration-300">
       <div className="flex items-center justify-between mb-8">
-        <Link to="/" className="inline-flex items-center text-slate-500 hover:text-tocantins-blue font-black text-xs uppercase tracking-widest transition-colors">
+        <Link to="/" className="inline-flex items-center text-slate-500 dark:text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow font-black text-xs uppercase tracking-widest transition-colors">
           <ArrowLeft className="w-4 h-4 mr-1" /> Voltar ao Início
         </Link>
-        <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Central de Alertas</h2>
+        <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Central de Alertas</h2>
       </div>
 
       {!selectedSubject ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2 mb-2">
-                  <p className="text-sm text-slate-500 font-bold">Escolha um professor para conversar ou ver seus alertas:</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">Escolha um professor para conversar ou ver seus alertas:</p>
               </div>
               {(Object.entries(subjectsInfo) as [Subject, any][]).map(([key, info]) => (
-                  <button key={key} onClick={() => setSelectedSubject(key)} className="bg-white p-6 rounded-3xl border-2 border-transparent hover:border-tocantins-blue hover:shadow-xl transition-all text-left flex items-center justify-between group">
+                  <button key={key} onClick={() => setSelectedSubject(key)} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border-2 border-transparent hover:border-tocantins-blue dark:hover:border-tocantins-yellow hover:shadow-xl transition-all text-left flex items-center justify-between group shadow-sm">
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 ${info.color} rounded-2xl flex items-center justify-center text-2xl shadow-lg`}>{info.icon}</div>
                         <div>
-                            <h3 className="font-bold text-slate-800">Prof. de {info.name}</h3>
-                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Clique para abrir o chat</p>
+                            <h3 className="font-bold text-slate-800 dark:text-slate-100">Prof. de {info.name}</h3>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest">Clique para abrir o chat</p>
                         </div>
                       </div>
-                      <ChevronRight className="text-slate-200 group-hover:text-tocantins-blue transition-colors" />
+                      <ChevronRight className="text-slate-200 dark:text-slate-700 group-hover:text-tocantins-blue dark:group-hover:text-tocantins-yellow transition-colors" />
                   </button>
               ))}
           </div>
       ) : (
-          <div className="bg-white rounded-[40px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[70vh] animate-in zoom-in-95 duration-300">
-            <div className={`${subjectsInfo[selectedSubject].color} p-5 text-white flex items-center justify-between shadow-lg`}>
+          <div className="bg-white dark:bg-slate-900 rounded-[40px] shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-[70vh] animate-in zoom-in-95 duration-300 transition-colors duration-300">
+            <div className={`${subjectsInfo[selectedSubject].color} p-5 text-white flex items-center justify-between shadow-lg border-b border-white/5`}>
               <div className="flex items-center gap-3">
                 <button onClick={() => setSelectedSubject(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><ArrowLeft size={18}/></button>
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/20 shadow-inner"><UserCircle size={24} /></div>
@@ -123,20 +123,20 @@ export const Contact: React.FC = () => {
               <div className="bg-white/10 px-3 py-1 rounded-full text-[9px] font-black uppercase hidden sm:block border border-white/10">Seguro</div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
               {loadingMessages && messages.length === 0 ? (
-                <div className="flex flex-col justify-center items-center h-full gap-2"><Loader2 className="animate-spin text-tocantins-blue" /><p className="text-[10px] font-black text-slate-400 uppercase">Conectando...</p></div>
+                <div className="flex flex-col justify-center items-center h-full gap-2"><Loader2 className="animate-spin text-tocantins-blue dark:text-tocantins-yellow" /><p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Conectando...</p></div>
               ) : messages.length === 0 ? (
-                <div className="text-center py-10 opacity-30"><MessageCircle className="mx-auto text-slate-300 mb-4" size={64} /><p className="text-slate-500 text-sm font-bold">Mande um "Oi" para seu professor!</p></div>
+                <div className="text-center py-10 opacity-30"><MessageCircle className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={64} /><p className="text-slate-500 dark:text-slate-400 text-sm font-bold">Mande um "Oi" para seu professor!</p></div>
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.is_from_teacher ? 'justify-start' : 'justify-end'}`}>
                     <div className={`max-w-[85%] p-4 rounded-[26px] shadow-md text-sm leading-relaxed ${
-                      msg.is_from_teacher ? 'bg-white border-l-4 border-l-tocantins-blue text-slate-700 rounded-tl-none ring-1 ring-slate-200' : 'bg-tocantins-blue text-white rounded-tr-none'
+                      msg.is_from_teacher ? 'bg-white dark:bg-slate-800 border-l-4 border-l-tocantins-blue dark:border-l-tocantins-yellow text-slate-700 dark:text-slate-200 rounded-tl-none ring-1 ring-slate-200 dark:ring-slate-700' : 'bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 rounded-tr-none'
                     }`}>
-                      {msg.is_from_teacher && <p className="text-[8px] font-black text-tocantins-blue uppercase mb-1 tracking-widest">Aviso do Professor</p>}
+                      {msg.is_from_teacher && <p className="text-[8px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-1 tracking-widest">Aviso do Professor</p>}
                       <p className="break-words font-medium">{msg.content}</p>
-                      <p className={`text-[9px] mt-2 font-bold flex justify-end ${msg.is_from_teacher ? 'text-slate-400' : 'text-blue-200'}`}>{msg.created_at?.toDate ? msg.created_at.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className={`text-[9px] mt-2 font-bold flex justify-end ${msg.is_from_teacher ? 'text-slate-400 dark:text-slate-500' : 'text-blue-200 dark:text-slate-800/60'}`}>{msg.created_at?.toDate ? msg.created_at.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
                 ))
@@ -144,9 +144,9 @@ export const Contact: React.FC = () => {
               <div ref={chatEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-5 bg-white border-t border-slate-100 flex gap-2">
-              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Tire sua dúvida aqui..." className="flex-1 p-4 bg-slate-100 border-none rounded-2xl text-sm focus:ring-2 focus:ring-tocantins-blue outline-none transition" disabled={sending} />
-              <button type="submit" disabled={sending || !newMessage.trim()} className="bg-tocantins-blue text-white w-14 h-14 rounded-2xl hover:bg-blue-800 transition shadow-lg flex items-center justify-center disabled:opacity-50 active:scale-90">{sending ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}</button>
+            <form onSubmit={handleSendMessage} className="p-5 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Tire sua dúvida aqui..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-tocantins-blue dark:focus:ring-tocantins-yellow outline-none transition dark:text-white" disabled={sending} />
+              <button type="submit" disabled={sending || !newMessage.trim()} className="bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 w-14 h-14 rounded-2xl hover:bg-blue-800 dark:hover:bg-amber-500 transition shadow-lg flex items-center justify-center disabled:opacity-50 active:scale-90 cursor-pointer">{sending ? <Loader2 size={24} className="animate-spin" /> : <Send size={24} />}</button>
             </form>
           </div>
       )}

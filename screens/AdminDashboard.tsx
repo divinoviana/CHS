@@ -16,7 +16,8 @@ import {
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2, Chrome,
-  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers, Database
+  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers, Database,
+  Sun, Moon, Presentation, ClipboardList, School, LogOut
 } from 'lucide-react';
 
 // Componente otimizado para buscar a foto de cada aluno individualmente, evitando o timeout.
@@ -365,6 +366,23 @@ export const AdminDashboard: React.FC = () => {
   const [filterBimester, setFilterBimester] = useState<string>('all');
 
   const isSuper = teacherSubject === 'SUPER_ADMIN';
+
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('admin-theme');
+    return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('admin-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('admin-theme', 'light');
+    }
+  }, [darkMode]);
+
+  const toggleTheme = () => setDarkMode(!darkMode);
 
   const getLessonBimester = (lessonTitle: string) => {
     for (const grade of curriculumData) {
@@ -1118,19 +1136,19 @@ export const AdminDashboard: React.FC = () => {
 
   if (!teacherSubject) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4 font-sans">
-        <div className="bg-white p-8 rounded-[40px] shadow-2xl w-full max-w-sm border border-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 dark:bg-slate-950 p-4 font-sans transition-colors duration-300">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-2xl w-full max-w-sm border border-slate-100 dark:border-slate-800">
           <div className="text-center mb-8">
-             <div className="w-20 h-20 bg-tocantins-blue rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-100">
-                <ShieldCheck className="text-white" size={40}/>
+             <div className="w-20 h-20 bg-tocantins-blue dark:bg-tocantins-yellow rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-100 dark:shadow-none">
+                <ShieldCheck className="text-white dark:text-slate-950" size={40}/>
              </div>
-             <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Acesso Docente</h2>
+             <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Acesso Docente</h2>
           </div>
 
           {authError && (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top">
-               <AlertTriangle className="text-amber-600 shrink-0" size={20}/>
-               <div className="text-[10px] text-amber-800 leading-relaxed">
+            <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top">
+               <AlertTriangle className="text-amber-600 dark:text-amber-500 shrink-0" size={20}/>
+               <div className="text-[10px] text-amber-800 dark:text-amber-200 leading-relaxed">
                   <p className="font-bold mb-1 uppercase tracking-wider">Aviso de Autenticação</p>
                   {authError}
                </div>
@@ -1138,7 +1156,7 @@ export const AdminDashboard: React.FC = () => {
           )}
 
           <form onSubmit={handleAdminLogin} className="space-y-4">
-            <select className="w-full p-4 border rounded-2xl bg-slate-50 font-bold text-slate-700 outline-none" value={selectedAccess} onChange={e => setSelectedAccess(e.target.value as any)}>
+            <select className="w-full p-4 border dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200 outline-none" value={selectedAccess} onChange={e => setSelectedAccess(e.target.value as any)}>
               <option value="SUPER_ADMIN">👑 Gestão Geral (Super Admin)</option>
               {Object.entries(subjectsInfo).map(([k, v]) => <option key={k} value={k}>Professor de {v.name}</option>)}
             </select>
@@ -1147,22 +1165,22 @@ export const AdminDashboard: React.FC = () => {
                 <button 
                   type="button" 
                   onClick={handleGoogleAdminLogin}
-                  className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-slate-100 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+                  className="w-full flex items-center justify-center gap-3 p-4 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95 cursor-pointer"
                 >
-                  <Chrome className="w-5 h-5 text-tocantins-blue" />
+                  <Chrome className="w-5 h-5 text-tocantins-blue dark:text-tocantins-yellow" />
                   Entrar com Google (Recomendado)
                 </button>
                 
                 <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300"><span className="bg-white px-4">ou use senha</span></div>
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300 dark:text-slate-600"><span className="bg-white dark:bg-slate-900 px-4">ou use senha</span></div>
                 </div>
 
                 <input 
                   required 
                   type="email" 
                   placeholder="Email Administrativo" 
-                  className="w-full p-4 border rounded-2xl bg-slate-50 outline-none" 
+                  className="w-full p-4 border dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800 outline-none dark:text-white" 
                   value={email} 
                   onChange={e => setEmail(e.target.value)} 
                 />
@@ -1172,11 +1190,11 @@ export const AdminDashboard: React.FC = () => {
               required 
               type="password" 
               placeholder="Senha de Acesso" 
-              className="w-full p-4 border rounded-2xl bg-slate-50 outline-none" 
+              className="w-full p-4 border dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800 outline-none dark:text-white" 
               value={pass} 
               onChange={e => setPass(e.target.value)} 
             />
-            <button type="submit" className="w-full bg-tocantins-blue text-white p-5 rounded-2xl font-black uppercase tracking-widest shadow-lg">Acessar Painel</button>
+            <button type="submit" className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase tracking-widest shadow-lg cursor-pointer">Acessar Painel</button>
           </form>
         </div>
       </div>
@@ -1186,34 +1204,34 @@ export const AdminDashboard: React.FC = () => {
   const currentSubInfo = !isSuper ? subjectsInfo[teacherSubject as Subject] : null;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans overflow-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row font-sans overflow-hidden transition-colors duration-300">
       
       {/* MODAL PLANO DE AULA GERADO (IA) */}
       {viewingLessonPlan && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-5xl rounded-[50px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-8 border-slate-50">
-                <div className="p-8 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-[50px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-8 border-slate-50 dark:border-slate-800 transition-colors duration-300">
+                <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-10 transition-colors">
                     <div className="flex items-center gap-4">
                         <div className="w-14 h-14 bg-amber-500 rounded-3xl flex items-center justify-center text-white shadow-xl">
                             <Sparkles size={28}/>
                         </div>
                         <div>
-                            <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter leading-tight">{viewingLessonPlan.title}</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Roteiro Pedagógico Sugerido (50 Minutos)</p>
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-tight">{viewingLessonPlan.title}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Roteiro Pedagógico Sugerido (50 Minutos)</p>
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={() => window.print()} className="p-4 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-2xl transition-all shadow-sm"> <Printer size={24}/> </button>
-                        <button onClick={() => setViewingLessonPlan(null)} className="p-4 bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm"> <X size={24}/> </button>
+                        <button onClick={() => window.print()} className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-tocantins-blue dark:hover:bg-tocantins-yellow hover:text-white dark:hover:text-slate-950 rounded-2xl transition-all shadow-sm cursor-pointer"> <Printer size={24}/> </button>
+                        <button onClick={() => setViewingLessonPlan(null)} className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm cursor-pointer"> <X size={24}/> </button>
                     </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-10 space-y-12 bg-white print:p-0">
+                <div className="flex-1 overflow-y-auto p-10 space-y-12 bg-white dark:bg-slate-900 print:p-0">
                     <section className="space-y-4">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <Layers size={16}/> Objetivos de Aprendizagem</h4>
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <Layers size={16}/> Objetivos de Aprendizagem</h4>
                         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {viewingLessonPlan.objectives.map((obj, i) => (
-                                <li key={i} className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-700 border border-slate-100 flex gap-3">
-                                    <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[10px] text-amber-500 shadow-sm shrink-0">{i+1}</span>
+                                <li key={i} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 flex gap-3">
+                                    <span className="w-6 h-6 rounded-full bg-white dark:bg-slate-950 flex items-center justify-center text-[10px] text-amber-500 shadow-sm shrink-0">{i+1}</span>
                                     {obj}
                                 </li>
                             ))}
@@ -1221,40 +1239,40 @@ export const AdminDashboard: React.FC = () => {
                     </section>
 
                     <section className="space-y-6">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <BookOpen size={16}/> Conteúdo Teórico Aprofundado</h4>
-                        <div className="prose prose-slate max-w-none bg-amber-50/30 p-10 rounded-[40px] border border-amber-100/50 text-slate-700 leading-relaxed text-lg italic font-serif">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <BookOpen size={16}/> Conteúdo Teórico Aprofundado</h4>
+                        <div className="prose prose-slate dark:prose-invert max-w-none bg-amber-50/30 dark:bg-amber-950/10 p-10 rounded-[40px] border border-amber-100/50 dark:border-amber-900/30 text-slate-700 dark:text-slate-200 leading-relaxed text-lg italic font-serif">
                             {viewingLessonPlan.theory}
                         </div>
                     </section>
 
                     <section className="space-y-6">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <Clock size={16}/> Metodologia e Divisão do Tempo</h4>
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <Clock size={16}/> Metodologia e Divisão do Tempo</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                <div className="text-[10px] font-black text-tocantins-blue uppercase mb-2">Introdução (10 min)</div>
-                                <p className="text-sm font-medium text-slate-600">{viewingLessonPlan.methodology.introduction}</p>
+                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                <div className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-2">Introdução (10 min)</div>
+                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{viewingLessonPlan.methodology.introduction}</p>
                             </div>
-                            <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100">
-                                <div className="text-[10px] font-black text-tocantins-blue uppercase mb-2">Desenvolvimento (30 min)</div>
-                                <p className="text-sm font-medium text-slate-600">{viewingLessonPlan.methodology.development}</p>
+                            <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30">
+                                <div className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-2">Desenvolvimento (30 min)</div>
+                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{viewingLessonPlan.methodology.development}</p>
                             </div>
-                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                <div className="text-[10px] font-black text-tocantins-blue uppercase mb-2">Fechamento (10 min)</div>
-                                <p className="text-sm font-medium text-slate-600">{viewingLessonPlan.methodology.conclusion}</p>
+                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                <div className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-2">Fechamento (10 min)</div>
+                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{viewingLessonPlan.methodology.conclusion}</p>
                             </div>
                         </div>
                     </section>
 
                     <section className="space-y-4">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <Wand2 size={16}/> Sugestão de Atividade Prática</h4>
-                        <div className="bg-slate-900 text-white p-10 rounded-[40px] shadow-2xl relative overflow-hidden">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <Wand2 size={16}/> Sugestão de Atividade Prática</h4>
+                        <div className="bg-slate-900 dark:bg-slate-950 text-white p-10 rounded-[40px] shadow-2xl relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-8 opacity-10"> <Sparkles size={80}/> </div>
                             <p className="text-lg font-bold leading-relaxed relative z-10">{viewingLessonPlan.suggestedActivity}</p>
                         </div>
                     </section>
                 </div>
-                <div className="p-6 border-t bg-slate-50 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Este roteiro foi gerado por IA para apoio docente • Customize conforme sua realidade local.</p>
+                <div className="p-6 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-center">
+                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Este roteiro foi gerado por IA para apoio docente • Customize conforme sua realidade local.</p>
                 </div>
             </div>
         </div>
@@ -1263,29 +1281,29 @@ export const AdminDashboard: React.FC = () => {
       {/* MODAL CRIAR ESTUDANTE (SUPER ADMIN) */}
       {isCreatingStudent && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
-                <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-                    <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2"> <UserPlus size={20} className="text-tocantins-blue"/> Novo Estudante</h3>
-                    <button onClick={() => setIsCreatingStudent(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24}/></button>
+            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden flex flex-col border border-slate-100 dark:border-slate-800 transition-colors">
+                <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2"> <UserPlus size={20} className="text-tocantins-blue dark:text-tocantins-yellow"/> Novo Estudante</h3>
+                    <button onClick={() => setIsCreatingStudent(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-slate-400 cursor-pointer"><X size={24}/></button>
                 </div>
                 <form onSubmit={handleCreateStudent} className="p-8 space-y-4">
-                    <input required placeholder="Nome Completo" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20" value={newStudentData.name} onChange={e => setNewStudentData({...newStudentData, name: e.target.value})} />
-                    <input required type="email" placeholder="E-mail de Acesso" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20" value={newStudentData.email} onChange={e => setNewStudentData({...newStudentData, email: e.target.value})} />
-                    <input required type="password" placeholder="Senha Inicial" className="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20" value={newStudentData.password} onChange={e => setNewStudentData({...newStudentData, password: e.target.value})} />
+                    <input required placeholder="Nome Completo" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 dark:text-white" value={newStudentData.name} onChange={e => setNewStudentData({...newStudentData, name: e.target.value})} />
+                    <input required type="email" placeholder="E-mail de Acesso" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 dark:text-white" value={newStudentData.email} onChange={e => setNewStudentData({...newStudentData, email: e.target.value})} />
+                    <input required type="password" placeholder="Senha Inicial" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 dark:text-white" value={newStudentData.password} onChange={e => setNewStudentData({...newStudentData, password: e.target.value})} />
                     <div className="grid grid-cols-2 gap-3">
-                        <select className="p-4 bg-slate-50 border rounded-2xl outline-none" value={newStudentData.grade} onChange={e => setNewStudentData({...newStudentData, grade: e.target.value})}>
+                        <select className="p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none dark:text-white" value={newStudentData.grade} onChange={e => setNewStudentData({...newStudentData, grade: e.target.value})}>
                             <option value="1">1ª Série</option>
                             <option value="2">2ª Série</option>
                             <option value="3">3ª Série</option>
                         </select>
-                        <select required className="p-4 bg-slate-50 border rounded-2xl outline-none" value={newStudentData.school_class} onChange={e => setNewStudentData({...newStudentData, school_class: e.target.value})}>
+                        <select required className="p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none dark:text-white" value={newStudentData.school_class} onChange={e => setNewStudentData({...newStudentData, school_class: e.target.value})}>
                             <option value="">Turma</option>
                             {newStudentData.grade === '1' && Array.from({length: 7}, (_, i) => `13.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
                             {newStudentData.grade === '2' && Array.from({length: 8}, (_, i) => `23.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
                             {newStudentData.grade === '3' && Array.from({length: 9}, (_, i) => `33.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
-                    <button type="submit" disabled={isSavingNewStudent} className="w-full bg-tocantins-blue text-white p-5 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center justify-center gap-2">
+                    <button type="submit" disabled={isSavingNewStudent} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95">
                         {isSavingNewStudent ? <Loader2 className="animate-spin"/> : <Save size={20}/>} Criar Cadastro
                     </button>
                 </form>
@@ -1296,39 +1314,39 @@ export const AdminDashboard: React.FC = () => {
       {/* MODAL DETALHES DA SUBMISSÃO */}
       {viewingSubmission && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors">
+                <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                     <div>
-                        <h3 className="font-black text-slate-800 uppercase tracking-tighter">Detalhes do Envio</h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">{viewingSubmission.student_name} • {viewingSubmission.lesson_title}</p>
+                        <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Detalhes do Envio</h3>
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{viewingSubmission.student_name} • {viewingSubmission.lesson_title}</p>
                     </div>
-                    <button onClick={() => setViewingSubmission(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24}/></button>
+                    <button onClick={() => setViewingSubmission(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-slate-400 cursor-pointer"><X size={24}/></button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 space-y-8">
                     <div className="space-y-6">
-                        <h4 className="font-black text-slate-800 text-sm uppercase flex items-center gap-2"> <ListChecks size={18} className="text-tocantins-blue"/> Respostas do Estudante </h4>
+                        <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm uppercase flex items-center gap-2"> <ListChecks size={18} className="text-tocantins-blue dark:text-tocantins-yellow"/> Respostas do Estudante </h4>
                         <div className="grid grid-cols-1 gap-4">
                             {viewingSubmission.content?.map((item: any, i: number) => (
-                                <div key={i} className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Pergunta {i+1}: {item.question}</p>
-                                    <p className="text-sm font-bold text-slate-700 italic">R: "{item.answer}"</p>
+                                <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2">Pergunta {i+1}: {item.question}</p>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 italic">R: "{item.answer}"</p>
                                 </div>
                             ))}
                         </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
-                            <h4 className="font-black text-slate-800 text-sm uppercase flex items-center gap-2"> <Sparkles size={18} className="text-purple-500"/> Análise Automática (IA) </h4>
-                            <div className="bg-purple-50 p-6 rounded-3xl border border-purple-100 text-xs text-purple-900 leading-relaxed italic">
+                            <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm uppercase flex items-center gap-2"> <Sparkles size={18} className="text-purple-500 dark:text-purple-400"/> Análise Automática (IA) </h4>
+                            <div className="bg-purple-50 dark:bg-purple-900/10 p-6 rounded-3xl border border-purple-100 dark:border-purple-900/30 text-xs text-purple-900 dark:text-purple-200 leading-relaxed italic">
                                 "{viewingSubmission.ai_feedback?.generalComment || 'Análise não disponível.'}"
-                                <div className="mt-4 pt-4 border-t border-purple-200 font-black uppercase text-[10px]">Nota Sugerida: {viewingSubmission.score?.toFixed(1)}</div>
+                                <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-900/50 font-black uppercase text-[10px]">Nota Sugerida: {viewingSubmission.score?.toFixed(1)}</div>
                             </div>
                         </div>
                         <div className="space-y-4">
-                            <h4 className="font-black text-slate-800 text-sm uppercase flex items-center gap-2"> <MessageSquareQuote size={18} className="text-amber-500"/> Seu Feedback (Manual) </h4>
+                            <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm uppercase flex items-center gap-2"> <MessageSquareQuote size={18} className="text-amber-500 dark:text-amber-400"/> Seu Feedback (Manual) </h4>
                             <div className="space-y-3">
-                                <textarea value={manualFeedback} onChange={e => setManualFeedback(e.target.value)} placeholder="Escreva orientações pedagógicas..." className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-3xl text-sm h-32 focus:border-tocantins-blue outline-none transition-all" />
-                                <button onClick={handleSaveManualFeedback} disabled={isSavingManualFeedback || !manualFeedback.trim()} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                                <textarea value={manualFeedback} onChange={e => setManualFeedback(e.target.value)} placeholder="Escreva orientações pedagógicas..." className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-3xl text-sm h-32 focus:border-tocantins-blue dark:focus:border-tocantins-yellow outline-none transition-all dark:text-white" />
+                                <button onClick={handleSaveManualFeedback} disabled={isSavingManualFeedback || !manualFeedback.trim()} className="w-full bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 p-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
                                     {isSavingManualFeedback ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>} Salvar e Enviar p/ Aluno
                                 </button>
                             </div>
@@ -1342,55 +1360,55 @@ export const AdminDashboard: React.FC = () => {
       {/* MODAL FICHA DO ESTUDANTE (CARÔMETRO) */}
       {selectedStudent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="p-6 border-b flex justify-between items-center bg-slate-50">
-                    <h3 className="font-black text-slate-800 uppercase tracking-tighter">Ficha do Estudante</h3>
-                    <button onClick={() => setSelectedStudent(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24}/></button>
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors">
+                <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Ficha do Estudante</h3>
+                    <button onClick={() => setSelectedStudent(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-slate-400 cursor-pointer"><X size={24}/></button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 space-y-8">
                     <div className="flex items-center gap-6">
-                        <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-xl flex-shrink-0 bg-slate-100">
+                        <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white dark:border-slate-800 shadow-xl flex-shrink-0 bg-slate-100 dark:bg-slate-800">
                             <StudentAvatar studentId={selectedStudent.id} studentName={selectedStudent.name} />
                         </div>
                         <div className="flex-1">
-                            <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{selectedStudent.name}</h4>
-                            <p className="text-indigo-600 font-black text-xs uppercase tracking-widest">{selectedStudent.grade}ª Série • Turma {selectedStudent.school_class}</p>
-                            <p className="text-slate-400 text-xs font-bold mt-1">E-mail: {selectedStudent.email}</p>
+                            <h4 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">{selectedStudent.name}</h4>
+                            <p className="text-indigo-600 dark:text-tocantins-yellow font-black text-xs uppercase tracking-widest">{selectedStudent.grade}ª Série • Turma {selectedStudent.school_class}</p>
+                            <p className="text-slate-400 dark:text-slate-500 text-xs font-bold mt-1">E-mail: {selectedStudent.email}</p>
                             <div className="flex wrap gap-2 mt-4">
-                                <button onClick={() => { setActiveTab('messages'); setSelectedChatStudentId(selectedStudent.id); setSelectedStudent(null); }} className="flex items-center gap-2 bg-tocantins-blue text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg"> <MessageSquare size={16}/> Chat </button>
+                                <button onClick={() => { setActiveTab('messages'); setSelectedChatStudentId(selectedStudent.id); setSelectedStudent(null); }} className="flex items-center gap-2 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer"> <MessageSquare size={16}/> Chat </button>
                                 {isSuper && (
                                     <>
-                                        <button onClick={handleResetPassword} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg"> <Key size={16}/> Resetar Senha </button>
-                                        <button onClick={handleDeleteStudent} className="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg"> <UserMinus size={16}/> Excluir Conta </button>
+                                        <button onClick={handleResetPassword} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer"> <Key size={16}/> Resetar </button>
+                                        <button onClick={handleDeleteStudent} className="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer"> <UserMinus size={16}/> Excluir </button>
                                     </>
                                 )}
                             </div>
                         </div>
                     </div>
                     <div className="space-y-4">
-                        <h5 className="font-black text-slate-400 text-[10px] uppercase tracking-widest flex items-center gap-2"> <ClipboardEdit size={14}/> Anotações Pedagógicas </h5>
+                        <h5 className="font-black text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest flex items-center gap-2"> <ClipboardEdit size={14}/> Anotações Pedagógicas </h5>
                         <div className="flex gap-2">
-                            <textarea value={studentNote} onChange={e => setStudentNote(e.target.value)} placeholder="Registre observações..." className="flex-1 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-tocantins-blue outline-none text-sm h-24" />
-                            <button onClick={handleSaveNote} disabled={isSavingNote || !studentNote.trim()} className="bg-slate-900 text-white px-6 rounded-2xl font-black text-[10px] uppercase"> {isSavingNote ? <Loader2 className="animate-spin"/> : <Save size={18}/>} Salvar </button>
+                            <textarea value={studentNote} onChange={e => setStudentNote(e.target.value)} placeholder="Registre observações..." className="flex-1 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 focus:border-tocantins-blue dark:focus:border-tocantins-yellow outline-none text-sm h-24 dark:text-white" />
+                            <button onClick={handleSaveNote} disabled={isSavingNote || !studentNote.trim()} className="bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest cursor-pointer"> {isSavingNote ? <Loader2 className="animate-spin"/> : <Save size={18}/>} Salvar </button>
                         </div>
                         <div className="space-y-3 mt-6">
                             {studentNotesHistory.map((n: any) => ( 
-                                <div key={n.id} className="bg-amber-50 p-4 rounded-2xl border border-amber-100 relative group/note"> 
+                                <div key={n.id} className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30 relative group/note"> 
                                     {editingNoteId === n.id ? (
                                         <div className="space-y-2">
-                                            <textarea value={editingNoteContent} onChange={e => setEditingNoteContent(e.target.value)} className="w-full p-3 bg-white rounded-xl border-2 border-amber-200 outline-none text-sm focus:border-tocantins-blue" />
+                                            <textarea value={editingNoteContent} onChange={e => setEditingNoteContent(e.target.value)} className="w-full p-3 bg-white dark:bg-slate-800 rounded-xl border-2 border-amber-200 dark:border-amber-800 outline-none text-sm focus:border-tocantins-blue dark:focus:border-tocantins-yellow dark:text-white" />
                                             <div className="flex gap-2">
-                                                <button onClick={handleUpdateNote} className="text-[10px] bg-tocantins-blue text-white px-4 py-1.5 rounded-lg font-black uppercase shadow-sm">Salvar</button>
-                                                <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="text-[10px] bg-slate-200 text-slate-600 px-4 py-1.5 rounded-lg font-black uppercase">Cancelar</button>
+                                                <button onClick={handleUpdateNote} className="text-[10px] bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 px-4 py-1.5 rounded-lg font-black uppercase shadow-sm cursor-pointer">Salvar</button>
+                                                <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-1.5 rounded-lg font-black uppercase cursor-pointer">Cancelar</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <>
-                                            <p className="text-sm text-slate-700 italic">"{n.content}"</p> 
-                                            <p className="text-[8px] font-black text-amber-600 uppercase mt-2">{n.created_at?.toDate ? n.created_at.toDate().toLocaleString() : new Date(n.created_at).toLocaleString()}</p>
+                                            <p className="text-sm text-slate-700 dark:text-slate-200 italic">"{n.content}"</p> 
+                                            <p className="text-[8px] font-black text-amber-600 dark:text-amber-500 uppercase mt-2">{n.created_at?.toDate ? n.created_at.toDate().toLocaleString() : new Date(n.created_at).toLocaleString()}</p>
                                             <div className="absolute top-2 right-2 opacity-0 group-hover/note:opacity-100 transition-opacity flex gap-1">
-                                                <button onClick={() => { setEditingNoteId(n.id); setEditingNoteContent(n.content); }} className="p-1.5 bg-white rounded-lg shadow-sm text-slate-400 hover:text-tocantins-blue transition-colors" title="Editar"><Pencil size={12}/></button>
-                                                <button onClick={() => handleDeleteNote(n.id)} className="p-1.5 bg-white rounded-lg shadow-sm text-slate-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={12}/></button>
+                                                <button onClick={() => { setEditingNoteId(n.id); setEditingNoteContent(n.content); }} className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow transition-colors cursor-pointer" title="Editar"><Pencil size={12}/></button>
+                                                <button onClick={() => handleDeleteNote(n.id)} className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors cursor-pointer" title="Excluir"><Trash2 size={12}/></button>
                                             </div>
                                         </>
                                     )}
@@ -1400,12 +1418,12 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     {/* HISTÓRICO DE ATIVIDADES */}
-                    <div className="space-y-6 pt-6 border-t">
-                        <h5 className="font-black text-slate-400 text-[10px] uppercase tracking-widest flex items-center gap-2"> <Layers size={14}/> Histórico de Atividades </h5>
+                    <div className="space-y-6 pt-6 border-t dark:border-slate-800">
+                        <h5 className="font-black text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest flex items-center gap-2"> <Layers size={14}/> Histórico de Atividades </h5>
                         
                         {(() => {
                           const studentSubs = submissions.filter(s => s.student_id === selectedStudent.id);
-                          if (studentSubs.length === 0) return <p className="text-[10px] text-slate-400 uppercase font-bold text-center py-4">Nenhuma atividade enviada ainda.</p>;
+                          if (studentSubs.length === 0) return <p className="text-[10px] text-slate-400 dark:text-slate-600 uppercase font-bold text-center py-4">Nenhuma atividade enviada ainda.</p>;
 
                           const bimesters = ['1º Bimestre', '2º Bimestre', '3º Bimestre', '4º Bimestre', 'Atividades Extras'];
                           const groupedSubs: Record<string, any[]> = {};
@@ -1422,24 +1440,24 @@ export const AdminDashboard: React.FC = () => {
 
                             return (
                               <div key={bim} className="space-y-3">
-                                <h6 className="text-[9px] font-black text-tocantins-blue uppercase bg-blue-50 px-3 py-1 rounded-lg w-fit">{bim}</h6>
+                                <h6 className="text-[9px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-lg w-fit">{bim}</h6>
                                 <div className="space-y-2">
                                   {subs.map(sub => (
-                                    <div key={sub.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center hover:border-tocantins-blue transition-colors group">
+                                    <div key={sub.id} className="bg-white dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-colors group">
                                       <div>
-                                        <p className="text-xs font-bold text-slate-800">{sub.lesson_title}</p>
-                                        <p className="text-[8px] text-slate-400 font-black uppercase mt-1">
+                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{sub.lesson_title}</p>
+                                        <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase mt-1">
                                           {sub.submitted_at?.toDate ? sub.submitted_at.toDate().toLocaleDateString() : new Date(sub.submitted_at).toLocaleDateString()}
                                         </p>
                                       </div>
                                       <div className="flex items-center gap-3">
                                         <div className="text-right">
-                                          <p className="text-[7px] font-black text-slate-400 uppercase">Nota</p>
-                                          <p className="text-xs font-black text-tocantins-blue">{sub.score?.toFixed(1)}</p>
+                                          <p className="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase">Nota</p>
+                                          <p className="text-xs font-black text-tocantins-blue dark:text-tocantins-yellow">{sub.score?.toFixed(1)}</p>
                                         </div>
                                         <button 
                                           onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }}
-                                          className="p-2 bg-slate-100 text-slate-400 rounded-lg group-hover:bg-tocantins-blue group-hover:text-white transition-all"
+                                          className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg group-hover:bg-tocantins-blue dark:group-hover:bg-tocantins-yellow group-hover:text-white dark:group-hover:text-slate-950 transition-all cursor-pointer"
                                         >
                                           <Eye size={14}/>
                                         </button>
@@ -1458,55 +1476,97 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* SIDEBAR */}
-      <aside className="w-full lg:w-72 bg-slate-900 text-white p-6 flex flex-col shrink-0 border-r border-white/5">
-        <div className="mb-10 text-center">
-           <div className={`w-20 h-20 mx-auto mb-4 rounded-3xl flex items-center justify-center text-3xl shadow-2xl overflow-hidden border-2 border-white/10 ${isSuper ? 'bg-amber-500' : currentSubInfo?.color}`}>
-             {teacherPhoto ? <img src={teacherPhoto} className="w-full h-full object-cover"/> : (isSuper ? '👑' : currentSubInfo?.icon)}
-           </div>
-           <h2 className="font-black text-sm uppercase tracking-tight">{isSuper ? 'Super Admin' : `Prof. ${currentSubInfo?.name}`}</h2>
-           {!isSuper && <button onClick={() => setActiveTab('teacher_profile')} className="mt-2 text-[8px] font-black text-slate-500 uppercase tracking-widest hover:text-tocantins-yellow transition-colors">Editar Minha Foto</button>}
+      <aside className="w-full lg:w-72 bg-slate-900 dark:bg-slate-950 text-white p-6 flex flex-col shrink-0 border-r border-white/5 transition-colors duration-300">
+        <div className="mb-10 text-center animate-in fade-in slide-in-from-left-4">
+          <div className="w-20 h-20 bg-tocantins-yellow rounded-[24px] mx-auto mb-4 flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-0 transition-transform cursor-pointer">
+            <School size={40} className="text-slate-900" />
+          </div>
+          <h1 className="text-lg font-black tracking-tighter uppercase leading-none">
+            Gênesis de <br/> <span className="text-tocantins-yellow italic">Biologia</span>
+          </h1>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">Painel do Educador</p>
         </div>
 
-        <nav className="space-y-2 flex-1 overflow-y-auto">
-          <button onClick={() => setActiveTab('submissions')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'submissions' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <BookOpen size={18}/> Atividades Diárias </button>
-          <button onClick={() => setActiveTab('lessons_list')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'lessons_list' ? 'bg-amber-500 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Library size={18}/> Plano de Aulas </button>
-          <button onClick={() => setActiveTab('question_bank')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'question_bank' ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Database size={18}/> Banco de Questões </button>
-          {!isSuper && ( <button onClick={() => setActiveTab('exam_generator')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'exam_generator' ? 'bg-purple-600 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <BrainCircuit size={18}/> Gerar Avaliação </button> )}
-          <button onClick={() => setActiveTab('students')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'students' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Users size={18}/> Carômetro </button>
-          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'reports' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <BarChart3 size={18}/> Relatórios (IA) </button>
-          <button onClick={() => setActiveTab('evaluations')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'evaluations' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Award size={18}/> Notas Bimestrais </button>
-          <button onClick={() => setActiveTab('messages')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'messages' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <MessageSquare size={18}/> Chat e Alertas </button>
+        <nav className="flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar">
+          {[
+            { id: 'question_bank', label: 'Banco de Questões', icon: Database },
+            { id: 'lessons_list', label: 'Plano de Aulas', icon: Presentation },
+            { id: 'students', label: 'Estudantes/Turmas', icon: Users },
+            { id: 'submissions', label: 'Atividades Recebidas', icon: ClipboardList },
+            { id: 'evaluations', label: 'Notas e Conceitos', icon: Award },
+            { id: 'exam_generator', label: 'Simulados IA', icon: BrainCircuit, adminOnly: true },
+            { id: 'reports', label: 'Relatórios IA', icon: Sparkles },
+            { id: 'messages', label: 'Chat Alunos', icon: MessageSquare },
+            { id: 'teacher_profile', label: 'Meu Perfil', icon: Settings },
+          ].map((item) => {
+            if (item.adminOnly && !isSuper) return null;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer group ${
+                  activeTab === item.id 
+                    ? 'bg-tocantins-yellow text-slate-900 shadow-lg shadow-tocantins-yellow/20 translate-x-1' 
+                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <item.icon size={18} className={activeTab === item.id ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'} />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
-        
-        <button onClick={handleExitAdmin} className="w-full flex items-center justify-center gap-2 p-5 text-slate-300 bg-white/5 hover:bg-red-500/20 hover:text-red-300 rounded-2xl transition-all text-xs font-black uppercase mt-8 border border-white/10"> <Home size={18}/> Sair do Painel </button>
+
+        <div className="mt-8 pt-8 border-t border-white/5 text-center space-y-4">
+          <button onClick={handleExitAdmin} className="w-full flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 p-3 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest cursor-pointer group">
+            <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" /> Sair do Painel
+          </button>
+          
+          <div className="animate-in fade-in slide-in-from-bottom-4 delay-500">
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">CIEI - Araguaína</p>
+            <p className="text-[8px] font-medium text-slate-600">
+              Sistema criado por: Prof. Me. Divino Ribeiro Viana
+              <br/>
+              <a href="http://lattes.cnpq.br/7639474934278364" target="_blank" rel="noopener noreferrer" className="font-black text-tocantins-yellow hover:underline transition-all">Currículo Lattes</a>
+            </p>
+          </div>
+        </div>
       </aside>
 
       {/* CONTEÚDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white border-b p-6 flex justify-between items-center z-10 shadow-sm no-print">
-           <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden transition-colors duration-300">
+        <header className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-6 flex justify-between items-center z-10 shadow-sm no-print transition-colors">
+           <h1 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
              {activeTab === 'teacher_profile' ? 'Perfil' : activeTab === 'reports' ? 'Relatórios IA' : activeTab === 'lessons_list' ? 'Plano de Aulas' : activeTab === 'messages' ? 'Chat' : activeTab === 'exam_generator' ? 'Gerador de Provas' : 'Gestão'}
            </h1>
            <div className="flex gap-2">
+             <button 
+               onClick={toggleTheme} 
+               className="p-3 text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-tocantins-yellow bg-slate-100 dark:bg-slate-800 rounded-xl transition-all cursor-pointer mr-2 flex items-center justify-center"
+               title={darkMode ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
+             > 
+               {darkMode ? <Sun size={20}/> : <Moon size={20}/>} 
+             </button>
+
              {activeTab === 'students' && isSuper && (
-                <button onClick={() => setIsCreatingStudent(true)} className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase shadow-lg shadow-green-100 hover:scale-105 transition-all"> <UserPlus size={18}/> Novo Aluno </button>
+                <button onClick={() => setIsCreatingStudent(true)} className="flex items-center gap-2 bg-green-600 dark:bg-green-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase shadow-lg shadow-green-100 dark:shadow-none hover:scale-105 transition-all cursor-pointer"> <UserPlus size={18}/> Novo Aluno </button>
              )}
-             <button onClick={loadData} className="p-3 text-slate-400 hover:text-tocantins-blue bg-slate-100 rounded-xl transition-all"> <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/> </button>
+             <button onClick={loadData} className="p-3 text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow bg-slate-100 dark:bg-slate-800 rounded-xl transition-all cursor-pointer"> <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/> </button>
            </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
            
            {/* ABA: PERFIL */}
            {activeTab === 'teacher_profile' && (
-              <div className="max-w-md mx-auto bg-white p-8 rounded-[40px] shadow-xl border border-slate-100 animate-in zoom-in-95">
+              <div className="max-w-md mx-auto bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 transition-colors">
                   <div className="text-center space-y-6">
-                      <div className={`w-40 h-40 rounded-[48px] overflow-hidden border-4 border-tocantins-blue shadow-2xl bg-slate-100 mx-auto`}>
+                      <div className={`w-40 h-40 rounded-[48px] overflow-hidden border-4 border-tocantins-blue dark:border-tocantins-yellow shadow-2xl bg-slate-100 dark:bg-slate-800 mx-auto`}>
                           {teacherPhoto ? <img src={teacherPhoto} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-4xl">👨‍🏫</div>}
                       </div>
-                      <h3 className="text-xl font-black text-slate-800 uppercase">Prof. de {subjectsInfo[teacherSubject as Subject]?.name || 'Área'}</h3>
+                      <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase">Prof. de {subjectsInfo[teacherSubject as Subject]?.name || 'Área'}</h3>
                       <div className="grid grid-cols-2 gap-3">
-                          <label className="flex items-center justify-center gap-2 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 hover:border-tocantins-blue transition-all cursor-pointer text-[10px] font-black uppercase">
+                          <label className="flex items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-all cursor-pointer text-[10px] font-black uppercase dark:text-slate-300">
                               <Upload size={18}/> Arquivo
                               <input type="file" accept="image/*" className="hidden" onChange={e => {
                                   const file = e.target.files?.[0];
@@ -1517,9 +1577,9 @@ export const AdminDashboard: React.FC = () => {
                                   }
                               }}/>
                           </label>
-                          <button onClick={() => setShowCamera(true)} className="flex items-center justify-center gap-2 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 hover:border-tocantins-blue transition-all text-[10px] font-black uppercase"> <Camera size={18}/> Câmera </button>
+                          <button onClick={() => setShowCamera(true)} className="flex items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-all text-[10px] font-black uppercase dark:text-slate-300 cursor-pointer"> <Camera size={18}/> Câmera </button>
                       </div>
-                      <button onClick={handleSaveTeacherProfile} disabled={isSavingProfile || !teacherPhoto} className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center justify-center gap-2">
+                      <button onClick={handleSaveTeacherProfile} disabled={isSavingProfile || !teacherPhoto} className="w-full bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center justify-center gap-2 cursor-pointer">
                           {isSavingProfile ? <Loader2 className="animate-spin"/> : <Save size={20}/>} Salvar Alterações
                       </button>
                   </div>
@@ -1528,17 +1588,17 @@ export const AdminDashboard: React.FC = () => {
 
            {/* FILTROS */}
            {activeTab !== 'exam_generator' && activeTab !== 'lessons_list' && activeTab !== 'messages' && activeTab !== 'teacher_profile' && activeTab !== 'reports' && (
-              <div className="mb-8 bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in no-print">
+              <div className="mb-8 bg-white dark:bg-slate-900 p-6 rounded-[32px] shadow-sm border border-slate-200 dark:border-slate-800 flex flex-wrap gap-4 items-end animate-in fade-in no-print transition-colors">
                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Buscar por Nome</label>
+                    <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Buscar por Nome</label>
                     <div className="relative">
-                       <Search className="absolute left-4 top-3.5 text-slate-300" size={18}/>
-                       <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Nome do aluno..." className="w-full pl-12 p-3.5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 text-sm font-medium" />
+                       <Search className="absolute left-4 top-3.5 text-slate-300 dark:text-slate-600" size={18}/>
+                       <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Nome do aluno..." className="w-full pl-12 p-3.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 text-sm font-medium dark:text-white" />
                     </div>
                  </div>
                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Série</label>
-                    <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="p-3.5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 text-sm font-bold min-w-[120px]">
+                    <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Série</label>
+                    <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 text-sm font-bold min-w-[120px] dark:text-white">
                        <option value="all">Todas</option>
                        <option value="1">1ª Série</option>
                        <option value="2">2ª Série</option>
@@ -1546,8 +1606,8 @@ export const AdminDashboard: React.FC = () => {
                     </select>
                  </div>
                  <div>
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Turma</label>
-                    <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="p-3.5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 text-sm font-bold min-w-[120px]">
+                    <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Turma</label>
+                    <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 text-sm font-bold min-w-[120px] dark:text-white">
                        <option value="all">Todas</option>
                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -1557,20 +1617,20 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: BANCO DE QUESTÕES */}
            {activeTab === 'question_bank' && (
-              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
-                 <div className="bg-white p-6 rounded-[32px] border shadow-sm mb-6">
+              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in transition-colors">
+                 <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm mb-6 transition-colors">
                     <div className="flex items-center gap-3 mb-4">
-                       <Database className="text-tocantins-blue" size={24}/>
-                       <h3 className="font-black text-slate-800 uppercase tracking-tighter">Diagnóstico do Banco de Dados</h3>
+                       <Database className="text-tocantins-blue dark:text-tocantins-yellow" size={24}/>
+                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Diagnóstico do Banco de Dados</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <h4 className="font-bold text-slate-800 text-xs mb-2 uppercase">1. O banco está vazio?</h4>
-                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">Se você não vê atividades ou questões, clique no botão abaixo para popular o banco com o currículo padrão.</p>
+                       <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 uppercase">1. O banco está vazio?</h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Se você não vê atividades ou questões, clique no botão abaixo para popular o banco com o currículo padrão.</p>
                           <button 
                              onClick={handleSeedDatabase}
                              disabled={loading}
-                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                             className="w-full bg-emerald-600 dark:bg-emerald-700 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                           >
                              {loading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
                              Popular Banco Automaticamente
@@ -1578,17 +1638,17 @@ export const AdminDashboard: React.FC = () => {
                           <button 
                              onClick={handleHardReset}
                              disabled={loading}
-                             className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                             className="w-full mt-2 bg-red-600 dark:bg-red-700 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                           >
                              {loading ? <Loader2 className="animate-spin" size={14}/> : <Trash2 size={14}/>}
                              Hard Reset (Limpeza Profunda)
                           </button>
                        </div>
-                       <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                          <h4 className="font-bold text-slate-800 text-xs mb-2 uppercase">2. Erros de Permissão ou IA?</h4>
-                          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">Verifique se sua chave API está ativa e se você tem permissões de administrador.</p>
+                       <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 uppercase">2. Erros de Permissão ou IA?</h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Verifique se sua chave API está ativa e se você tem permissões de administrador.</p>
                           <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-tocantins-blue font-black text-[10px] uppercase">
+                             <div className="flex items-center gap-2 text-tocantins-blue dark:text-tocantins-yellow font-black text-[10px] uppercase">
                                 <ShieldCheck size={14}/> Sistema de Resiliência Ativo
                              </div>
                              <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? 'text-emerald-600' : 'text-amber-600'}`}>
@@ -1600,47 +1660,37 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                  </div>
 
-                 <div className="bg-white p-6 rounded-[32px] border shadow-sm">
+                 <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm transition-colors">
                     <div className="flex justify-between items-center mb-4">
                       <div>
-                        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Banco de Questões</h2>
-                        <p className="text-sm text-slate-500 mt-1">Aqui estão todas as questões geradas e salvas no banco de dados. Elas podem ser reutilizadas em avaliações futuras.</p>
+                        <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Banco de Questões</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Aqui estão todas as questões geradas e salvas no banco de dados.</p>
                       </div>
-                      {/* {isSuper && (
-                        <button 
-                          onClick={handleSeedDatabase}
-                          disabled={loading}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
-                        >
-                          {loading ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
-                          Popular Banco Automaticamente
-                        </button>
-                      )} */}
                     </div>
                     
                     {questionBank.length === 0 ? (
-                      <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold">Nenhuma questão no banco. Use o Plano de Aulas para criar novas atividades.</div>
+                      <div className="text-center py-10 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 font-bold">Nenhuma questão no banco. Use o Plano de Aulas para criar novas atividades.</div>
                     ) : (
                       <div className="space-y-4">
                         {questionBank.map((q) => (
-                          <div key={q.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 relative group overflow-hidden">
+                          <div key={q.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 relative group overflow-hidden transition-colors">
                             <div className="absolute top-4 right-4 flex gap-2">
-                               <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 bg-white text-red-500 rounded-lg shadow-sm border border-red-50 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100" title="Excluir">
+                               <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 bg-white dark:bg-slate-800 text-red-500 rounded-lg shadow-sm border border-red-50 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Excluir">
                                  <Trash2 size={14}/>
                                </button>
                             </div>
                             <div className="flex items-center gap-3 mb-3">
-                               <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${q.type === 'objective' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                               <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${q.type === 'objective' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
                                  {q.type === 'objective' ? 'Objetiva' : 'Discursiva'}
                                </span>
-                               <span className="text-xs font-bold text-slate-500 uppercase">{q.subject} • {q.topic}</span>
+                               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{q.subject} • {q.topic}</span>
                             </div>
-                            <p className="text-slate-800 font-medium">{q.question_text}</p>
+                            <p className="text-slate-800 dark:text-slate-200 font-medium">{q.question_text}</p>
                             
                             {q.type === 'objective' && q.options && (
                               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {Object.entries(q.options).map(([key, val]) => (
-                                  <div key={key} className={`p-3 rounded-xl text-sm border ${q.correct_option === key ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                  <div key={key} className={`p-3 rounded-xl text-sm border transition-colors ${q.correct_option === key ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900/30 text-green-800 dark:text-green-400 font-bold' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}>
                                     <span className="uppercase mr-2 opacity-50">{key})</span> {String(val)}
                                   </div>
                                 ))}
@@ -1656,30 +1706,30 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: SUBMISSÕES */}
            {activeTab === 'submissions' && (
-              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
+              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in transition-colors">
                 {studentsWithSubmissions.length === 0 ? (
-                  <div className="text-center py-20 bg-white rounded-[40px] border border-dashed border-slate-200 text-slate-400 font-bold">Nenhum envio recebido.</div>
+                  <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 font-bold transition-colors">Nenhum envio recebido.</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {studentsWithSubmissions.map(st => (
                       <button 
                         key={st.id} 
                         onClick={() => setSelectedStudent(st)} 
-                        className="bg-white rounded-[32px] border shadow-sm p-6 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all group text-left"
+                        className="bg-white dark:bg-slate-900 rounded-[32px] border dark:border-slate-800 shadow-sm p-6 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all group text-left cursor-pointer"
                       >
-                        <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-md shrink-0">
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden border-2 border-white dark:border-slate-700 shadow-md shrink-0">
                           <StudentAvatar studentId={st.id} studentName={st.name} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-black text-slate-800 uppercase text-xs truncate">{st.name}</h3>
-                          <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">{st.school_class}</p>
+                          <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs truncate">{st.name}</h3>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest mt-1">{st.school_class}</p>
                           <div className="flex items-center gap-2 mt-2">
-                            <span className="bg-blue-50 text-tocantins-blue text-[8px] font-black px-2 py-1 rounded-lg uppercase">
+                            <span className="bg-blue-50 dark:bg-blue-900/20 text-tocantins-blue dark:text-tocantins-yellow text-[8px] font-black px-2 py-1 rounded-lg uppercase">
                               {st.submissionCount} {st.submissionCount === 1 ? 'Atividade' : 'Atividades'}
                             </span>
                           </div>
                         </div>
-                        <ChevronRight className="text-slate-300 group-hover:text-tocantins-blue transition-colors" size={20}/>
+                        <ChevronRight className="text-slate-300 dark:text-slate-600 group-hover:text-tocantins-blue dark:group-hover:text-tocantins-yellow transition-colors" size={20}/>
                       </button>
                     ))}
                   </div>
@@ -1689,20 +1739,20 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: CARÔMETRO (ESTUDANTES) */}
            {activeTab === 'students' && (
-              <div className="space-y-6 animate-in fade-in">
+              <div className="space-y-6 animate-in fade-in transition-colors">
                   {isSuper && (
-                    <div className="bg-white p-6 rounded-[32px] border shadow-sm flex items-center justify-between gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm flex items-center justify-between gap-4 transition-colors">
                       <div className="flex items-center gap-3">
-                        <Upload className="text-tocantins-blue" size={24}/>
+                        <Upload className="text-tocantins-blue dark:text-tocantins-yellow" size={24}/>
                         <div>
-                          <h3 className="font-black text-slate-800 uppercase tracking-tighter text-sm">Migração de Dados</h3>
-                          <p className="text-slate-400 text-[10px] font-bold uppercase">Cadastrar estudantes extraídos das imagens anteriormente</p>
+                          <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-sm">Migração de Dados</h3>
+                          <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase">Cadastrar estudantes extraídos das imagens anteriormente</p>
                         </div>
                       </div>
                       <button 
                         onClick={handleSeedStudents}
                         disabled={isSeedingStudents}
-                        className="bg-tocantins-blue hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                        className="bg-tocantins-blue dark:bg-tocantins-yellow hover:bg-blue-700 dark:hover:bg-amber-400 text-white dark:text-slate-950 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {isSeedingStudents ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
                         Migrar Estudantes ({STUDENTS_SEED_DATA.length})
@@ -1711,15 +1761,15 @@ export const AdminDashboard: React.FC = () => {
                   )}
 
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {filteredStudents.length === 0 ? <div className="col-span-full py-20 text-center text-slate-400 font-bold uppercase text-[10px]">Nenhum estudante cadastrado.</div> : 
+                    {filteredStudents.length === 0 ? <div className="col-span-full py-20 text-center text-slate-400 dark:text-slate-600 font-bold uppercase text-[10px]">Nenhum estudante cadastrado.</div> : 
                       filteredStudents.map(st => (
-                        <button key={st.id} onClick={() => setSelectedStudent(st)} className="bg-white p-4 rounded-[32px] border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden text-left">
-                            <div className="w-full aspect-square rounded-2xl bg-slate-100 mb-4 overflow-hidden shadow-inner border-2 border-white">
+                        <button key={st.id} onClick={() => setSelectedStudent(st)} className="bg-white dark:bg-slate-900 p-4 rounded-[32px] border dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden text-left cursor-pointer">
+                            <div className="w-full aspect-square rounded-2xl bg-slate-100 dark:bg-slate-800 mb-4 overflow-hidden shadow-inner border-2 border-white dark:border-slate-700 transition-colors">
                                <StudentAvatar studentId={st.id} studentName={st.name} />
                             </div>
-                            <h4 className="font-black text-slate-800 text-[10px] uppercase truncate px-1">{st.name}</h4>
-                            <p className="text-[8px] font-black text-tocantins-blue uppercase mt-1">Série: {st.grade}ª • Turma: {st.school_class}</p>
-                            <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-lg shadow-sm border opacity-0 group-hover:opacity-100 transition-opacity"> <Settings size={12} className="text-slate-400"/> </div>
+                            <h4 className="font-black text-slate-800 dark:text-white text-[10px] uppercase truncate px-1">{st.name}</h4>
+                            <p className="text-[8px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mt-1">Série: {st.grade}ª • Turma: {st.school_class}</p>
+                            <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-2 py-1 rounded-lg shadow-sm border dark:border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"> <Settings size={12} className="text-slate-400 dark:text-slate-500"/> </div>
                         </button>
                       ))
                     }
@@ -1729,52 +1779,52 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: CHAT */}
            {activeTab === 'messages' && (
-              <div className="max-w-6xl mx-auto h-full flex flex-col animate-in fade-in">
+              <div className="max-w-6xl mx-auto h-full flex flex-col animate-in fade-in transition-colors">
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-hidden h-[calc(100vh-160px)]">
-                    <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden flex flex-col shadow-sm">
-                        <div className="p-5 border-b bg-slate-50"> <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Conversas</h3> </div>
-                        <div className="flex-1 overflow-y-auto divide-y">
-                            {chatSessions.length === 0 ? <div className="p-10 text-center text-slate-400 text-[10px] font-bold uppercase">Sem conversas ativas.</div> : 
+                    <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col shadow-sm transition-colors">
+                        <div className="p-5 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 transition-colors"> <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">Conversas</h3> </div>
+                        <div className="flex-1 overflow-y-auto divide-y dark:divide-slate-800 transition-colors">
+                            {chatSessions.length === 0 ? <div className="p-10 text-center text-slate-400 dark:text-slate-600 text-[10px] font-bold uppercase">Sem conversas ativas.</div> : 
                                 chatSessions.map(session => (
-                                    <button key={session.studentId} onClick={() => setSelectedChatStudentId(session.studentId)} className={`w-full p-4 flex items-center gap-4 transition-colors text-left hover:bg-slate-50 ${selectedChatStudentId === session.studentId ? 'bg-blue-50 border-r-4 border-tocantins-blue' : ''}`}>
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex-shrink-0 overflow-hidden border"> 
+                                    <button key={session.studentId} onClick={() => setSelectedChatStudentId(session.studentId)} className={`w-full p-4 flex items-center gap-4 transition-colors text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer ${selectedChatStudentId === session.studentId ? 'bg-blue-50 dark:bg-blue-900/20 border-r-4 border-tocantins-blue dark:border-tocantins-yellow' : ''}`}>
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex-shrink-0 overflow-hidden border dark:border-slate-700 transition-colors"> 
                                             <StudentAvatar studentId={session.studentId} studentName={session.studentName} />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-baseline mb-1"> <h4 className="font-black text-slate-800 text-[10px] uppercase truncate">{session.studentName}</h4> <span className="text-[8px] text-slate-400 font-bold">{new Date(session.timestamp).toLocaleDateString()}</span> </div>
-                                            <p className="text-[10px] text-slate-500 font-medium truncate">{session.lastMessage}</p>
+                                            <div className="flex justify-between items-baseline mb-1"> <h4 className="font-black text-slate-800 dark:text-white text-[10px] uppercase truncate">{session.studentName}</h4> <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold">{new Date(session.timestamp).toLocaleDateString()}</span> </div>
+                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">{session.lastMessage}</p>
                                         </div>
                                     </button>
                                 ))
                             }
                         </div>
                     </div>
-                    <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200 overflow-hidden flex flex-col shadow-sm">
+                    <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-[32px] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col shadow-sm transition-colors">
                         {selectedChatStudentId ? (
                             <>
-                                <div className="p-4 border-b bg-slate-50 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-slate-200 overflow-hidden"> 
+                                <div className="p-4 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3 transition-colors">
+                                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 overflow-hidden transition-colors"> 
                                         <StudentAvatar studentId={selectedChatStudentId} studentName={students.find(s => s.id === selectedChatStudentId)?.name || ''} />
                                     </div>
-                                    <h4 className="font-black text-slate-800 text-xs uppercase">{students.find(s => s.id === selectedChatStudentId)?.name}</h4>
+                                    <h4 className="font-black text-slate-800 dark:text-white text-xs uppercase">{students.find(s => s.id === selectedChatStudentId)?.name}</h4>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
                                     {selectedChatMessages.map(m => (
                                         <div key={m.id} className={`flex ${m.is_from_teacher ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-[80%] p-4 rounded-3xl shadow-sm text-sm ${m.is_from_teacher ? 'bg-slate-900 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'}`}>
+                                            <div className={`max-w-[80%] p-4 rounded-3xl shadow-sm text-sm ${m.is_from_teacher ? 'bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 rounded-tr-none' : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 rounded-tl-none border border-slate-100 dark:border-slate-800'}`}>
                                                 <p className="font-medium leading-relaxed">{m.content}</p>
-                                            <p className={`text-[8px] mt-2 font-bold uppercase ${m.is_from_teacher ? 'text-slate-400' : 'text-slate-300'}`}> {m.created_at?.toDate ? m.created_at.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} </p>
+                                            <p className={`text-[8px] mt-2 font-bold uppercase ${m.is_from_teacher ? 'text-slate-400' : 'text-slate-500'}`}> {m.created_at?.toDate ? m.created_at.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} </p>
                                             </div>
                                         </div>
                                     ))}
                                     <div ref={chatEndRef} />
                                 </div>
-                                <form onSubmit={handleSendMessage} className="p-4 bg-white border-t flex gap-2">
-                                    <input type="text" value={teacherReplyText} onChange={e => setTeacherReplyText(e.target.value)} placeholder="Responder..." className="flex-1 p-4 bg-slate-100 rounded-2xl outline-none text-sm" disabled={isSendingReply} />
-                                    <button type="submit" disabled={!teacherReplyText.trim() || isSendingReply} className="bg-tocantins-blue text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"> {isSendingReply ? <Loader2 className="animate-spin" size={20}/> : <Send size={20}/>} </button>
+                                <form onSubmit={handleSendMessage} className="p-4 bg-white dark:bg-slate-900 border-t dark:border-slate-800 flex gap-2 transition-colors">
+                                    <input type="text" value={teacherReplyText} onChange={e => setTeacherReplyText(e.target.value)} placeholder="Responder..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none text-sm dark:text-white transition-colors" disabled={isSendingReply} />
+                                    <button type="submit" disabled={!teacherReplyText.trim() || isSendingReply} className="bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg cursor-pointer"> {isSendingReply ? <Loader2 className="animate-spin" size={20}/> : <Send size={20}/>} </button>
                                 </form>
                             </>
-                        ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-10 opacity-30"> <MessageSquare size={64} className="mb-4 text-slate-300" /> <h4 className="font-black text-slate-800 uppercase text-xs">Selecione uma conversa</h4> </div> }
+                        ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-10 opacity-30"> <MessageSquare size={64} className="mb-4 text-slate-300 dark:text-slate-700" /> <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase text-xs">Selecione uma conversa</h4> </div> }
                     </div>
                  </div>
               </div>
@@ -1782,20 +1832,20 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: PLANO DE AULAS */}
            {activeTab === 'lessons_list' && (
-              <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in">
-                 <div className="bg-amber-50 p-6 rounded-[32px] border border-amber-200 flex items-center gap-4 mb-4">
-                   <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
+              <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in transition-colors">
+                 <div className="bg-amber-50 dark:bg-amber-950/20 p-6 rounded-[32px] border border-amber-200 dark:border-amber-900/30 flex items-center gap-4 mb-4 transition-colors">
+                   <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-500 rounded-2xl flex items-center justify-center">
                      <Pencil size={24}/>
                    </div>
                    <div>
-                     <h3 className="font-black text-amber-900 uppercase text-xs">Gestão Manual de Aulas</h3>
-                     <p className="text-amber-700 text-[10px] font-bold">Clique em uma aula para editar o conteúdo e criar atividades personalizadas.</p>
+                     <h3 className="font-black text-amber-900 dark:text-amber-200 uppercase text-xs">Gestão Manual de Aulas</h3>
+                     <p className="text-amber-700 dark:text-amber-400 text-[10px] font-bold">Clique em uma aula para editar o conteúdo e criar atividades personalizadas.</p>
                    </div>
                  </div>
 
                  {curriculumData.map(grade => (
                     <div key={grade.id} className="space-y-4">
-                       <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm ml-4">{grade.title} - {grade.description}</h3>
+                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm ml-4 transition-colors">{grade.title} - {grade.description}</h3>
                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                           {grade.bimesters.map(b => (
                              <div key={b.id} className="bg-white p-5 rounded-[32px] border shadow-sm flex flex-col">
@@ -1832,36 +1882,36 @@ export const AdminDashboard: React.FC = () => {
                                         </div>
                                       </div>
                                    ))}
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           )}
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                  ))}
+               </div>
+            )}
 
-           {/* ABAS: GERADOR DE PROVAS */}
+            {/* ABAS: GERADOR DE PROVAS */}
            {activeTab === 'exam_generator' && !isSuper && (
-              <div className="max-w-4xl mx-auto animate-in zoom-in-95">
-                 <div className="bg-white p-8 rounded-[40px] shadow-xl border border-slate-100">
+              <div className="max-w-4xl mx-auto animate-in zoom-in-95 transition-colors">
+                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 transition-colors">
                     <div className="flex items-center gap-4 mb-8">
-                       <div className="w-14 h-14 bg-purple-100 text-purple-600 rounded-3xl flex items-center justify-center shadow-inner"> <BrainCircuit size={32}/> </div>
-                       <div> <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Simulados IA</h2> <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Criação de avaliações estilo ENEM</p> </div>
+                       <div className="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-3xl flex items-center justify-center shadow-inner"> <BrainCircuit size={32}/> </div>
+                       <div> <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Simulados IA</h2> <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">Criação de avaliações estilo ENEM</p> </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                       <div> <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Série</label> <select value={examGrade} onChange={e => setExamGrade(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 outline-none ring-1 ring-slate-100"> <option value="1">1ª Série</option> <option value="2">2ª Série</option> <option value="3">3ª Série</option> </select> </div>
-                       <div> <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Bimestre</label> <select value={examBimester} onChange={e => setExamBimester(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 outline-none ring-1 ring-slate-100"> <option value="1">1º Bimestre</option> <option value="2">2º Bimestre</option> <option value="3">3º Bimestre</option> <option value="4">4º Bimestre</option> </select> </div>
-                       <div> <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Turma</label> <select value={examClass} onChange={e => setExamClass(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 outline-none ring-1 ring-slate-100"> <option value="all">Todas</option> {classOptions.map(c => <option key={c} value={c}>{c}</option>)} </select> </div>
+                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Série</label> <select value={examGrade} onChange={e => setExamGrade(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="1">1ª Série</option> <option value="2">2ª Série</option> <option value="3">3ª Série</option> </select> </div>
+                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Bimestre</label> <select value={examBimester} onChange={e => setExamBimester(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="1">1º Bimestre</option> <option value="2">2º Bimestre</option> <option value="3">3º Bimestre</option> <option value="4">4º Bimestre</option> </select> </div>
+                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Turma</label> <select value={examClass} onChange={e => setExamClass(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="all">Todas</option> {classOptions.map(c => <option key={c} value={c}>{c}</option>)} </select> </div>
                     </div>
                     {!generatedExam ? (
-                       <button onClick={handleGenerateExam} disabled={isGeneratingExam} className="w-full bg-purple-600 text-white p-6 rounded-3xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3"> {isGeneratingExam ? <Loader2 className="animate-spin"/> : <Wand2 size={20}/>} {isGeneratingExam ? 'Gerando questões...' : 'Gerar Prova'} </button>
+                       <button onClick={handleGenerateExam} disabled={isGeneratingExam} className="w-full bg-purple-600 dark:bg-purple-700 text-white p-6 rounded-3xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 hover:opacity-90 transition-all cursor-pointer"> {isGeneratingExam ? <Loader2 className="animate-spin"/> : <Wand2 size={20}/>} {isGeneratingExam ? 'Gerando questões...' : 'Gerar Prova'} </button>
                     ) : (
                        <div className="space-y-6">
-                          <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"> <h3 className="font-black text-slate-800 uppercase mb-4 border-b pb-2">Pré-visualização</h3> <div className="space-y-4"> {generatedExam.questions.map((q, i) => ( <div key={i} className="text-xs"> <p className="font-black text-purple-600 mb-1">Questão {i+1}</p> <p className="text-slate-600 italic">"{q.questionText}"</p> </div> ))} </div> </div>
+                          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800"> <h3 className="font-black text-slate-800 dark:text-white uppercase mb-4 border-b dark:border-slate-800 pb-2">Pré-visualização</h3> <div className="space-y-4"> {generatedExam.questions.map((q, i) => ( <div key={i} className="text-xs"> <p className="font-black text-purple-600 dark:text-purple-400 mb-1">Questão {i+1}</p> <p className="text-slate-600 dark:text-slate-400 italic">"{q.questionText}"</p> </div> ))} </div> </div>
                           <div className="flex gap-4">
-                             <button onClick={handlePublishExam} disabled={isPublishingExam} className="flex-1 bg-tocantins-blue text-white p-5 rounded-3xl font-black uppercase text-xs flex items-center justify-center gap-2"> {isPublishingExam ? <Loader2 className="animate-spin"/> : <CheckCircle2 size={18}/>} Publicar </button>
-                             <button onClick={() => setGeneratedExam(null)} className="flex-1 bg-slate-100 text-slate-600 p-5 rounded-3xl font-black uppercase text-xs"> Descartar </button>
+                             <button onClick={handlePublishExam} disabled={isPublishingExam} className="flex-1 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-3xl font-black uppercase text-xs flex items-center justify-center gap-2 hover:opacity-90 transition-all cursor-pointer"> {isPublishingExam ? <Loader2 className="animate-spin"/> : <CheckCircle2 size={18}/>} Publicar </button>
+                             <button onClick={() => setGeneratedExam(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 p-5 rounded-3xl font-black uppercase text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"> Descartar </button>
                           </div>
                        </div>
                     )}
@@ -1871,22 +1921,22 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: RELATÓRIOS (IA) */}
            {activeTab === 'reports' && (
-              <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in">
-                 <div className="bg-white p-8 rounded-[40px] shadow-xl border border-slate-100">
+              <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in transition-colors">
+                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 transition-colors">
                     <div className="flex items-center gap-4 mb-8">
-                       <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center shadow-inner"> <BarChart3 size={32}/> </div>
-                       <div> <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Relatórios Pedagógicos</h2> <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Análise de desempenho assistida por IA</p> </div>
+                       <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-3xl flex items-center justify-center shadow-inner"> <BarChart3 size={32}/> </div>
+                       <div> <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Relatórios Pedagógicos</h2> <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">Análise de desempenho assistida por IA</p> </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                       <div> <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Tipo de Relatório</label> <div className="flex gap-2 p-2 bg-slate-50 rounded-2xl"> <button onClick={() => setReportTarget('student')} className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${reportTarget === 'student' ? 'bg-white shadow-md text-tocantins-blue' : 'text-slate-400'}`}>Individual</button> <button onClick={() => setReportTarget('class')} className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${reportTarget === 'class' ? 'bg-white shadow-md text-tocantins-blue' : 'text-slate-400'}`}>Por Turma</button> </div> </div>
-                       {reportTarget === 'student' ? ( <div> <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Escolher Aluno</label> <select value={selectedReportStudent} onChange={e => setSelectedReportStudent(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 outline-none ring-1 ring-slate-100"> <option value="">Selecione...</option> {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.school_class})</option>)} </select> </div> ) : ( <div> <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Escolher Turma</label> <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 outline-none ring-1 ring-slate-100"> <option value="all">Selecione...</option> {classOptions.map(c => <option key={c} value={c}>{c}</option>)} </select> </div> )}
+                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Tipo de Relatório</label> <div className="flex gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded-2xl"> <button onClick={() => setReportTarget('student')} className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${reportTarget === 'student' ? 'bg-white dark:bg-slate-700 shadow-md text-tocantins-blue dark:text-tocantins-yellow' : 'text-slate-400 dark:text-slate-500'}`}>Individual</button> <button onClick={() => setReportTarget('class')} className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${reportTarget === 'class' ? 'bg-white dark:bg-slate-700 shadow-md text-tocantins-blue dark:text-tocantins-yellow' : 'text-slate-400 dark:text-slate-500'}`}>Por Turma</button> </div> </div>
+                       {reportTarget === 'student' ? ( <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Escolher Aluno</label> <select value={selectedReportStudent} onChange={e => setSelectedReportStudent(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="">Selecione...</option> {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.school_class})</option>)} </select> </div> ) : ( <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Escolher Turma</label> <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="all">Selecione...</option> {classOptions.map(c => <option key={c} value={c}>{c}</option>)} </select> </div> )}
                     </div>
-                    <button onClick={handleGenerateFullReport} disabled={isGeneratingReport} className="w-full bg-tocantins-blue text-white p-6 rounded-3xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3"> {isGeneratingReport ? <Loader2 className="animate-spin"/> : <Sparkles size={20}/>} {isGeneratingReport ? 'Processando dados...' : 'Gerar Relatório'} </button>
+                    <button onClick={handleGenerateFullReport} disabled={isGeneratingReport} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-6 rounded-3xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 hover:opacity-90 transition-all cursor-pointer"> {isGeneratingReport ? <Loader2 className="animate-spin"/> : <Sparkles size={20}/>} {isGeneratingReport ? 'Processando dados...' : 'Gerar Relatório'} </button>
                  </div>
                  {aiReportResult && (
-                    <div className="bg-white p-10 rounded-[40px] shadow-xl border border-slate-100 animate-in slide-in-from-bottom-4">
-                       <div className="flex justify-between items-center mb-8"> <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">Parecer do Sistema</h3> <button onClick={() => window.print()} className="p-3 bg-slate-100 rounded-xl text-slate-500 hover:text-tocantins-blue transition-colors"> <Printer size={20}/> </button> </div>
-                       <div className="prose prose-slate max-w-none text-slate-600 text-sm leading-relaxed whitespace-pre-wrap"> {aiReportResult} </div>
+                    <div className="bg-white dark:bg-slate-900 p-10 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-4 transition-colors">
+                       <div className="flex justify-between items-center mb-8"> <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">Parecer do Sistema</h3> <button onClick={() => window.print()} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow transition-colors"> <Printer size={20}/> </button> </div>
+                       <div className="prose prose-slate dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap"> {aiReportResult} </div>
                     </div>
                  )}
               </div>
@@ -1894,28 +1944,29 @@ export const AdminDashboard: React.FC = () => {
 
            {/* ABAS: NOTAS BIMESTRAIS */}
            {activeTab === 'evaluations' && (
-              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
-                 <div className="bg-white rounded-[40px] border overflow-hidden shadow-sm">
+              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in transition-colors">
+                 <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 overflow-hidden shadow-sm transition-colors">
                     <table className="w-full text-left">
-                       <thead className="bg-slate-50 border-b">
-                          <tr> <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Estudante</th> <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Avaliação</th> <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Turma</th> <th className="p-6 text-[10px] font-black text-slate-400 uppercase text-center">Nota</th> <th className="p-6 text-[10px] font-black text-slate-400 uppercase text-right">Ação</th> </tr>
+                       <thead className="bg-slate-50 dark:bg-slate-800/50 border-b dark:border-slate-800 transition-colors">
+                          <tr> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Estudante</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Avaliação</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Turma</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase text-center">Nota</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase text-right">Ação</th> </tr>
                        </thead>
-                       <tbody className="divide-y">
-                          {filteredSubmissions.length === 0 ? <tr><td colSpan={5} className="p-20 text-center text-slate-300 font-bold">Nenhum resultado.</td></tr> : 
+                       <tbody className="divide-y dark:divide-slate-800 transition-colors">
+
+                          {filteredSubmissions.length === 0 ? <tr><td colSpan={5} className="p-20 text-center text-slate-300 dark:text-slate-700 font-bold">Nenhum resultado.</td></tr> : 
                              filteredSubmissions.map(sub => (
-                                <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors group">
+                                <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
                                    <td className="p-6"> 
                                       <div className="flex items-center gap-3"> 
-                                          <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"> 
+                                          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden transition-colors"> 
                                               <StudentAvatar studentId={students.find(s => s.name.trim() === sub.student_name)?.id} studentName={sub.student_name} />
                                           </div> 
-                                          <span className="text-xs font-bold text-slate-700 uppercase">{sub.student_name}</span> 
+                                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">{sub.student_name}</span> 
                                       </div> 
                                    </td>
-                                   <td className="p-6"> <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">{sub.lesson_title}</span> </td>
-                                   <td className="p-6 text-xs font-bold text-slate-500 uppercase">{sub.school_class}</td>
-                                   <td className="p-6"> <div className="w-10 h-10 rounded-xl bg-tocantins-blue text-white flex items-center justify-center font-black mx-auto shadow-lg shadow-blue-100">{sub.score?.toFixed(1)}</div> </td>
-                                   <td className="p-6 text-right"> <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-xl transition-all"> <Eye size={18}/> </button> </td>
+                                   <td className="p-6"> <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full uppercase">{sub.lesson_title}</span> </td>
+                                   <td className="p-6 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{sub.school_class}</td>
+                                   <td className="p-6"> <div className="w-10 h-10 rounded-xl bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 flex items-center justify-center font-black mx-auto shadow-lg shadow-blue-100 dark:shadow-none">{sub.score?.toFixed(1)}</div> </td>
+                                   <td className="p-6 text-right"> <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-tocantins-blue dark:hover:bg-tocantins-yellow hover:text-white dark:hover:text-slate-950 rounded-xl transition-all cursor-pointer"> <Eye size={18}/> </button> </td>
                                 </tr>
                              ))
                           }
@@ -1931,47 +1982,47 @@ export const AdminDashboard: React.FC = () => {
       {/* MODAL: EDITOR DE AULA */}
       {isLessonEditorOpen && selectedLessonForEdit && (
         <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
-            <div className="p-8 border-b bg-slate-50 flex justify-between items-center shrink-0">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh] transition-colors">
+            <div className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center shrink-0 transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-500 rounded-2xl flex items-center justify-center">
                   <BookOpen size={24}/>
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Editor de Conteúdo</h2>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">Personalize a teoria e o título da sua aula</p>
+                  <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Editor de Conteúdo</h2>
+                  <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">Personalize a teoria e o título da sua aula</p>
                 </div>
               </div>
-              <button onClick={() => setIsLessonEditorOpen(false)} className="p-3 hover:bg-slate-200 rounded-2xl transition-colors"> <X size={24}/> </button>
+              <button onClick={() => setIsLessonEditorOpen(false)} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-colors dark:text-slate-400 cursor-pointer"> <X size={24}/> </button>
             </div>
 
             <div className="p-8 space-y-6 overflow-y-auto" id="lesson-preview-area">
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-2 block">Título da Aula (Público para alunos)</label>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-2 block">Título da Aula (Público para alunos)</label>
                 <input 
                   type="text" 
                   value={lessonTitleDraft} 
                   onChange={e => setLessonTitleDraft(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500 transition-all"
                 />
               </div>
               
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-2 block">Conteúdo Teórico / Texto da Aula</label>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-2 block">Conteúdo Teórico / Texto da Aula</label>
                 <textarea 
                   rows={12}
                   value={lessonTheoryDraft}
                   onChange={e => setLessonTheoryDraft(e.target.value)}
-                  className="w-full p-6 bg-slate-50 border-none rounded-3xl font-medium text-slate-600 outline-none focus:ring-2 focus:ring-amber-500 transition-all leading-relaxed"
+                  className="w-full p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-3xl font-medium text-slate-600 dark:text-slate-300 outline-none focus:ring-2 focus:ring-amber-500 transition-all leading-relaxed"
                   placeholder="Escreva aqui o conteúdo que os alunos irão ler..."
                 />
               </div>
             </div>
 
-            <div className="p-6 border-t bg-slate-50 flex gap-4 shrink-0">
+            <div className="p-6 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex gap-4 shrink-0 transition-colors">
               <button 
                 onClick={() => exportToPDF('lesson-preview-area', `Aula_${lessonTitleDraft}`)}
-                className="px-6 py-4 bg-white border border-slate-200 text-slate-600 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 hover:bg-slate-100 transition-all"
+                className="px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
               >
                 <Download size={18}/> Baixar PDF
               </button>
@@ -1979,7 +2030,7 @@ export const AdminDashboard: React.FC = () => {
               <button 
                 onClick={handleSaveLessonOverride}
                 disabled={isSavingLesson}
-                className="px-10 py-4 bg-tocantins-blue text-white rounded-2xl font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all"
+                className="px-10 py-4 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 rounded-2xl font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
               >
                 {isSavingLesson ? <Loader2 size={20} className="animate-spin" /> : <Save size={20}/>} SALVAR E POSTAR
               </button>
@@ -1991,59 +2042,59 @@ export const AdminDashboard: React.FC = () => {
       {/* MODAL: EDITOR DE ATIVIDADES */}
       {isActivityEditorOpen && selectedLessonForEdit && (
         <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-6xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[95vh]">
-            <div className="p-8 border-b bg-slate-50 flex justify-between items-center shrink-0">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[95vh] transition-colors">
+            <div className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center shrink-0 transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-500 rounded-2xl flex items-center justify-center">
                   <ListChecks size={24}/>
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Criação de Atividades</h2>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Aula: {selectedLessonForEdit.title}</p>
+                  <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Criação de Atividades</h2>
+                  <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Aula: {selectedLessonForEdit.title}</p>
                 </div>
               </div>
-              <button onClick={() => setIsActivityEditorOpen(false)} className="p-3 hover:bg-slate-200 rounded-2xl transition-colors"> <X size={24}/> </button>
+              <button onClick={() => setIsActivityEditorOpen(false)} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-colors dark:text-slate-400 cursor-pointer"> <X size={24}/> </button>
             </div>
 
-            <div className="flex-1 overflow-hidden flex flex-col md:flex-row divide-x">
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row divide-x dark:divide-slate-800">
               {/* Formulário de Nova Questão */}
-              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-6 bg-slate-50/50">
-                <h3 className="font-black text-slate-800 uppercase text-xs mb-4">Nova Questão</h3>
+              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-6 bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
+                <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs mb-4">Nova Questão</h3>
                 
-                <div className="flex gap-2 p-1 bg-white rounded-2xl border mb-4">
+                <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700 mb-4 transition-colors">
                   <button 
                     onClick={() => setNewQuestion({...newQuestion, type: 'objective'})}
-                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'objective' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}
+                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'objective' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 dark:text-slate-500'} cursor-pointer`}
                   >
                     Múltipla Escolha
                   </button>
                   <button 
                     onClick={() => setNewQuestion({...newQuestion, type: 'discursive'})}
-                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'discursive' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}
+                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'discursive' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 dark:text-slate-500'} cursor-pointer`}
                   >
                     Dissertativa
                   </button>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-2 block">Enunciado</label>
+                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-2 block">Enunciado</label>
                   <textarea 
                     rows={4}
                     value={newQuestion.question_text}
                     onChange={e => setNewQuestion({...newQuestion, question_text: e.target.value})}
-                    className="w-full p-4 bg-white border rounded-2xl text-sm font-medium outline-none focus:border-indigo-500"
+                    className="w-full p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
                     placeholder="Ex: Qual o principal conceito de..."
                   />
                 </div>
 
                 {newQuestion.type === 'objective' && (
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2 block">Opções</label>
+                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 block">Opções</label>
                     {['a', 'b', 'c', 'd', 'e'].map(opt => (
                       <div key={opt} className="flex gap-2">
                         <button 
                           onClick={() => setNewQuestion({...newQuestion, correct_option: opt})}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center font-black uppercase shrink-0 transition-all ${newQuestion.correct_option === opt ? 'bg-green-500 text-white shadow-md' : 'bg-white border text-slate-300'}`}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center font-black uppercase shrink-0 transition-all cursor-pointer ${newQuestion.correct_option === opt ? 'bg-green-500 text-white shadow-md' : 'bg-white dark:bg-slate-800 border dark:border-slate-700 text-slate-300 dark:text-slate-600'}`}
                         >
                           {opt}
                         </button>
@@ -2055,7 +2106,7 @@ export const AdminDashboard: React.FC = () => {
                             ...newQuestion, 
                             options: { ...newQuestion.options, [opt]: e.target.value }
                           })}
-                          className="flex-1 p-3 bg-white border rounded-xl text-xs outline-none"
+                          className="flex-1 p-3 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-xs outline-none dark:text-white transition-colors"
                         />
                       </div>
                     ))}
@@ -2065,19 +2116,19 @@ export const AdminDashboard: React.FC = () => {
                 <button 
                   onClick={handleAddQuestionToDraft}
                   disabled={isSavingActivity || !newQuestion.question_text.trim()}
-                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:shadow-indigo-200 transition-all disabled:opacity-50"
+                  className="w-full py-4 bg-indigo-600 dark:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:shadow-indigo-200 dark:shadow-none transition-all disabled:opacity-50 cursor-pointer"
                 >
                   Adicionar Questão
                 </button>
               </div>
 
               {/* Lista de Questões Já Adicionadas */}
-              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-4">
+              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 transition-colors">
                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-black text-slate-800 uppercase text-xs">Questões Criadas ({activityQuestionsDraft.length})</h3>
+                    <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs">Questões Criadas ({activityQuestionsDraft.length})</h3>
                     <button 
                       onClick={() => exportToPDF('activity-preview-area', `Atividade_${selectedLessonForEdit.title}`)}
-                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                      className="p-2 text-indigo-600 dark:text-tocantins-yellow hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
                     >
                       <Download size={18}/>
                     </button>
@@ -2085,21 +2136,21 @@ export const AdminDashboard: React.FC = () => {
                  <div id="activity-preview-area" className="space-y-4">
                    {activityQuestionsDraft.length === 0 ? (
                      <div className="py-20 text-center opacity-30 flex flex-col items-center">
-                       <ClipboardEdit size={48} className="mb-4 text-slate-300" />
-                       <p className="text-[10px] font-bold uppercase tracking-widest">Nenhuma questão adicionada ainda.</p>
+                       <ClipboardEdit size={48} className="mb-4 text-slate-300 dark:text-slate-700" />
+                       <p className="text-[10px] font-bold uppercase tracking-widest dark:text-slate-400">Nenhuma questão adicionada ainda.</p>
                      </div>
                    ) : (
                      activityQuestionsDraft.map((q, i) => (
-                       <div key={q.id || i} className="group relative bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:border-indigo-100 transition-all">
+                       <div key={q.id || i} className="group relative bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm hover:border-indigo-100 dark:hover:border-indigo-900 transition-all">
                           <div className="flex justify-between gap-4">
-                             <span className="bg-slate-900 text-white w-6 h-6 rounded-md flex items-center justify-center font-black text-[10px] shrink-0">{i+1}</span>
-                             <p className="text-[11px] font-bold text-slate-700 flex-1 leading-relaxed">{q.question_text}</p>
-                             <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="text-red-300 hover:text-red-500 transition-colors shrink-0"> <Trash2 size={14}/> </button>
+                             <span className="bg-slate-900 dark:bg-slate-700 text-white w-6 h-6 rounded-md flex items-center justify-center font-black text-[10px] shrink-0">{i+1}</span>
+                             <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 flex-1 leading-relaxed">{q.question_text}</p>
+                             <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="text-red-300 dark:text-red-500/50 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0 cursor-pointer"> <Trash2 size={14}/> </button>
                           </div>
                           {q.type === 'objective' && (
                             <div className="mt-3 grid grid-cols-1 gap-1 pl-10">
                               {Object.entries(q.options || {}).filter(([k,v]) => v).map(([k, v]) => (
-                                <div key={k} className={`text-[9px] font-medium p-2 rounded-lg ${q.correct_option === k ? 'bg-green-50 text-green-700 border border-green-100' : 'text-slate-400'}`}>
+                                <div key={k} className={`text-[9px] font-medium p-2 rounded-lg ${q.correct_option === k ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-900/30' : 'text-slate-400 dark:text-slate-500'}`}>
                                   <span className="uppercase font-black mr-2">{k}:</span> {v as string}
                                 </div>
                               ))}
@@ -2117,14 +2168,14 @@ export const AdminDashboard: React.FC = () => {
 
       {/* OVERLAY DE CARREGAMENTO DA IA */}
       {isGeneratingPlan && (
-        <div className="fixed inset-0 z-[300] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95">
-                <div className="w-16 h-16 bg-amber-500 rounded-3xl flex items-center justify-center text-white animate-bounce shadow-xl">
+        <div className="fixed inset-0 z-[500] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95 transition-colors">
+                <div className="w-16 h-16 bg-amber-500 dark:bg-amber-600 rounded-3xl flex items-center justify-center text-white animate-bounce shadow-xl">
                     <Sparkles size={32}/>
                 </div>
                 <div className="text-center">
-                    <h3 className="font-black text-slate-800 uppercase tracking-tighter">Preparando Aula Pronta</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">A IA está escrevendo o roteiro de 50 min...</p>
+                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Preparando Aula Pronta</h3>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">A IA está escrevendo o roteiro de 50 min...</p>
                 </div>
                 <Loader2 className="animate-spin text-amber-500" size={24}/>
             </div>

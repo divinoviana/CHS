@@ -35,11 +35,12 @@ async function seed() {
   await setPersistence(auth, inMemoryPersistence);
 
   for (const student of missing) {
+    let grade = '1';
+    if (student.school_class.startsWith('2')) grade = '2';
+    if (student.school_class.startsWith('3')) grade = '3';
+
     try {
       console.log(`Processing: ${student.email}...`);
-      let grade = '1';
-      if (student.school_class.startsWith('2')) grade = '2';
-      if (student.school_class.startsWith('3')) grade = '3';
 
       let userCredential = await createUserWithEmailAndPassword(auth, student.email, student.password);
       const user = userCredential.user;
