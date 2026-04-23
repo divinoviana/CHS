@@ -151,6 +151,7 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
         grade: formData.grade,
         school_class: formData.school_class,
         photo_url: googleUserPending.photoURL,
+        role: 'student',
         created_at: serverTimestamp()
       };
       
@@ -185,6 +186,7 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
           school_class: formData.school_class,
           grade: formData.grade,
           photo_url: photo,
+          role: 'student',
           created_at: serverTimestamp()
         };
 

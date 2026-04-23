@@ -32,8 +32,9 @@ service cloud.firestore {
     function isValidStudent(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.email is string && data.email.size() < 100 &&
-             (data.role == 'student' || data.role == 'admin') &&
-             data.grade is string && data.school_class is string;
+             (data.get('role', 'student') == 'student' || data.get('role', 'student') == 'admin') &&
+             data.grade is string && data.school_class is string &&
+             (data.get('photo_url', '') is string && data.get('photo_url', '').size() < 1048576);
     }
 
     function isValidMessage(data) {
@@ -49,9 +50,9 @@ service cloud.firestore {
     match /students/{studentId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidStudent(request.resource.data) && 
-                    (isAdmin() || (isOwner(studentId) && request.resource.data.role == 'student'));
+                    (isAdmin() || (isOwner(studentId) && request.resource.data.get('role', 'student') == 'student'));
       allow update: if isAuthenticated() && isValidStudent(request.resource.data) && 
-                    (isAdmin() || (isOwner(studentId) && request.resource.data.role == resource.data.role));
+                    (isAdmin() || (isOwner(studentId) && request.resource.data.get('role', 'student') == resource.data.get('role', 'student')));
       allow delete: if isAdmin();
     }
 
