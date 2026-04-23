@@ -25,29 +25,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setIsLoading(true);
-      if (user) {
-        try {
-          const studentDoc = await getDoc(doc(db, 'students', user.uid));
-          if (studentDoc.exists()) {
-            setStudent({ id: user.uid, ...studentDoc.data() });
-          } else {
-            // Se o usuário existe no Auth mas não no Firestore (ex: admin logado via Google)
+      try {
+        if (user) {
+          try {
+            const studentDoc = await getDoc(doc(db, 'students', user.uid));
+            if (studentDoc.exists()) {
+              setStudent({ id: user.uid, ...studentDoc.data() });
+            } else {
+              // Se o usuário existe no Auth mas não no Firestore (ex: admin logado via Google)
+              setStudent({ id: user.uid, email: user.email, name: user.displayName || 'Usuário' });
+            }
+          } catch (error) {
+            console.error("Erro ao buscar dados do estudante:", error);
+            // Non-blocking for the auth state itself
             setStudent({ id: user.uid, email: user.email, name: user.displayName || 'Usuário' });
           }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `students/${user.uid}`);
-          setStudent({ id: user.uid, email: user.email, name: user.displayName || 'Usuário' });
+        } else {
+          setStudent(null);
         }
-      } else {
-        setStudent(null);
+        
+        const savedTeacher = sessionStorage.getItem('CHSA_TEACHER_SESSION');
+        if (savedTeacher) {
+          setTeacherSubject(savedTeacher);
+        }
+      } finally {
+        setIsLoading(false);
       }
-      
-      const savedTeacher = sessionStorage.getItem('CHSA_TEACHER_SESSION');
-      if (savedTeacher) {
-        setTeacherSubject(savedTeacher);
-      }
-      
-      setIsLoading(false);
     });
 
     return () => unsubscribe();

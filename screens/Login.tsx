@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Loader2, User, Lock, Camera, Upload, X, Check, Chrome } from 'lucide-react';
+import { GraduationCap, Loader2, User, Lock, Camera, Upload, X, Check, Chrome, Eye, EyeOff } from 'lucide-react';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -25,6 +25,21 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
 
   const [photo, setPhoto] = useState<string | null>(null);
   const [googleUserPending, setGoogleUserPending] = useState<any>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!formData.email) {
+      alert("Por favor, digite seu e-mail para solicitar a redefinição de senha.");
+      return;
+    }
+    try {
+      const { sendPasswordResetEmail } = await import('firebase/auth');
+      await sendPasswordResetEmail(auth, formData.email);
+      alert("Um link de redefinição de senha foi enviado para o seu e-mail. Verifique também a pasta de spam.");
+    } catch (err: any) {
+      alert("Erro ao enviar redefinição: " + err.message);
+    }
+  };
 
   // Redirect if already logged in and profile is complete
   React.useEffect(() => {
@@ -133,7 +148,8 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
       }
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user') {
-        handleFirestoreError(err, OperationType.WRITE, 'auth/google');
+        console.error("Google Login Error:", err);
+        alert("Erro no acesso com Google: " + (err.message || "Erro desconhecido"));
       }
     } finally {
       setLoading(false);
@@ -162,7 +178,8 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
       
       navigate('/');
     } catch (err: any) {
-      alert(err.message);
+      console.error("Complete registration error:", err);
+      alert("Erro ao concluir cadastro: " + (err.message || "Tente novamente."));
     } finally {
       setLoading(false);
     }
@@ -205,7 +222,14 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
         navigate('/');
       }
     } catch (err: any) {
-      alert(err.message);
+      console.error("Auth error:", err);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        alert("E-mail ou senha incorretos. Por favor, verifique seus dados ou use o botão 'Esqueceu a senha?'.");
+      } else if (err.code === 'auth/email-already-in-use') {
+        alert("Este e-mail já está em uso. Se você já tem uma conta, faça login.");
+      } else {
+        alert(err.message || "Ocorreu um erro no acesso.");
+      }
     } finally {
       setLoading(false);
     }
@@ -267,8 +291,11 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
                   <User className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
                 </div>
                 <div className="relative">
-                  <input required type="password" placeholder="Senha de Acesso" className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={adminData.password} onChange={e => setAdminData({...adminData, password: e.target.value})} />
+                  <input required type={showPassword ? "text" : "password"} placeholder="Senha de Acesso" className="w-full p-4 pl-12 pr-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={adminData.password} onChange={e => setAdminData({...adminData, password: e.target.value})} />
                   <Lock className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-slate-400 hover:text-tocantins-blue transition-colors">
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
 
@@ -371,9 +398,19 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
                   <User className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
                 </div>
                 <div className="relative">
-                  <input required type="password" placeholder="Senha" className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                  <input required type={showPassword ? "text" : "password"} placeholder="Senha" className="w-full p-4 pl-12 pr-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
                   <Lock className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-slate-400 hover:text-tocantins-blue transition-colors">
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
+                {!isRegistering && (
+                  <div className="flex justify-end px-1">
+                    <button type="button" onClick={handleResetPassword} className="text-[9px] font-black uppercase text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow transition-colors tracking-widest">
+                      Esqueceu a senha?
+                    </button>
+                  </div>
+                )}
               </div>
 
               <button disabled={loading} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-blue-100 dark:shadow-none flex justify-center items-center gap-2 cursor-pointer active:scale-95 transition-all">
