@@ -13,11 +13,21 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export const Login: React.FC = () => {
-  const { loginStudent } = useAuth();
+  const { student, loginStudent } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const navigate = useNavigate();
+  
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [googleUserPending, setGoogleUserPending] = useState<any>(null);
+
+  // Redirect if already logged in and profile is complete
+  React.useEffect(() => {
+    if (student && !googleUserPending && student.grade) {
+      navigate('/');
+    }
+  }, [student, googleUserPending, navigate]);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -30,9 +40,6 @@ export const Login: React.FC = () => {
     grade: '1'
   });
   
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [googleUserPending, setGoogleUserPending] = useState<any>(null);
-
   const startCamera = async () => {
     setShowCamera(true);
     try {
@@ -78,6 +85,7 @@ export const Login: React.FC = () => {
       // Verifica se o aluno já existe no Firestore
       const studentDoc = await getDoc(doc(db, 'students', user.uid));
       if (studentDoc.exists()) {
+        loginStudent({ id: user.uid, ...studentDoc.data() });
         navigate('/');
       } else {
         // Novo usuário, precisa escolher série e turma
@@ -97,14 +105,20 @@ export const Login: React.FC = () => {
     if (!googleUserPending || !formData.school_class) return;
     setLoading(true);
     try {
-      await setDoc(doc(db, 'students', googleUserPending.uid), {
+      const studentData = {
         name: googleUserPending.displayName || 'Aluno',
         email: googleUserPending.email,
         grade: formData.grade,
         school_class: formData.school_class,
         photo_url: googleUserPending.photoURL,
         created_at: serverTimestamp()
-      });
+      };
+      
+      await setDoc(doc(db, 'students', googleUserPending.uid), studentData);
+      
+      // Update context state immediately to avoid race conditions
+      loginStudent({ id: googleUserPending.uid, ...studentData });
+      
       navigate('/');
     } catch (err: any) {
       alert(err.message);
@@ -125,20 +139,27 @@ export const Login: React.FC = () => {
         const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
         const user = userCredential.user;
 
-        // 2. Salvar dados no Firestore
-        await setDoc(doc(db, 'students', user.uid), {
+        const studentData = {
           name: formData.name,
           email: formData.email,
           school_class: formData.school_class,
           grade: formData.grade,
           photo_url: photo,
           created_at: serverTimestamp()
-        });
+        };
+
+        // 2. Salvar dados no Firestore
+        await setDoc(doc(db, 'students', user.uid), studentData);
+        
+        // Update context state immediately
+        loginStudent({ id: user.uid, ...studentData });
         
         alert("Cadastro realizado com sucesso!");
         navigate('/');
       } else {
         await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        // signIn handles redirection via AuthContext + onAuthStateChanged
+        // but we keep the manual navigate as back up
         navigate('/');
       }
     } catch (err: any) {

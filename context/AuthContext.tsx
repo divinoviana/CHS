@@ -24,6 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setIsLoading(true);
       if (user) {
         try {
           const studentDoc = await getDoc(doc(db, 'students', user.uid));
@@ -35,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `students/${user.uid}`);
+          setStudent({ id: user.uid, email: user.email, name: user.displayName || 'Usuário' });
         }
       } else {
         setStudent(null);
