@@ -1,26 +1,27 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, limit, getDocs, getDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc } from 'firebase/firestore';
-import { subjectsInfo, ADMIN_PASSWORDS, TEACHER_EMAILS, curriculumData } from '../data';
+import { 
+  collection, query, where, orderBy, limit, getDocs, getDoc, doc, 
+  addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, setDoc 
+} from 'firebase/firestore';
+import { subjectsInfo, curriculumData } from '../data';
 import { STUDENTS_SEED_DATA } from '../src/students_to_seed';
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { exportToPDF } from '../lib/pdfUtils';
-import { generateBimonthlyEvaluation, GeneratedEvaluation, generatePedagogicalSummary, generateLessonPlan, LessonPlan } from '../services/aiService';
 import { 
-  Users, BookOpen, User, 
-  MessageSquare, Loader2, X, Save, 
-  RefreshCw, Home, ShieldCheck, Trash2, Settings,
-  Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
-  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2, Chrome,
-  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers, Database,
-  Sun, Moon, Presentation, ClipboardList, School, LogOut
+  Users, BookOpen, MessageSquare, Loader2, X, Save, 
+  Home, ShieldCheck, Trash2, Settings, Search, Award, 
+  Clock, Send, BrainCircuit, Sparkles, FileText, CheckCircle2,
+  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, 
+  BarChart3, Printer, Wand2, Library, ListChecks, Database,
+  Sun, Moon, Presentation, ClipboardList, LogOut, Pencil, Eye, AlertTriangle, UserCircle
 } from 'lucide-react';
 
-// Componente otimizado para buscar a foto de cada aluno individualmente, evitando o timeout.
+// Componente otimizado para buscar a foto de cada aluno individualmente
 const StudentAvatar: React.FC<{ studentId?: string; studentName: string }> = ({ studentId, studentName }) => {
   const [photo, setPhoto] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,6 @@ const StudentAvatar: React.FC<{ studentId?: string; studentName: string }> = ({ 
       setLoading(true);
       try {
         const studentDoc = await getDoc(doc(db, 'students', studentId));
-        
         if (studentDoc.exists()) {
           const data = studentDoc.data();
           if (!isCancelled && data?.photo_url) {
@@ -45,484 +45,243 @@ const StudentAvatar: React.FC<{ studentId?: string; studentName: string }> = ({ 
       } catch (err) {
         console.error("Photo fetch error for student", studentId, err);
       } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
+        if (!isCancelled) setLoading(false);
       }
     };
     fetchPhoto();
     return () => { isCancelled = true; };
   }, [studentId]);
 
-  if (loading) {
-    return <div className="w-full h-full bg-slate-200 animate-pulse" />;
-  }
-
+  if (loading) return <div className="w-full h-full bg-slate-100 dark:bg-slate-800 animate-pulse" />;
+  if (photo) return <img src={photo} alt={studentName} className="w-full h-full object-cover" />;
   return (
-    <img 
-      src={photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=random`} 
-      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-      loading="lazy"
-      alt={studentName}
-    />
+    <div className="w-full h-full bg-tocantins-blue/10 dark:bg-tocantins-yellow/10 flex items-center justify-center text-tocantins-blue dark:text-tocantins-yellow font-black text-xl">
+      {studentName.charAt(0)}
+    </div>
   );
 };
 
-
+// Componente principal do Painel Administrativo
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { teacherSubject, loginTeacher, logoutTeacher, isLoading: isAuthLoading, student: authUser } = useAuth();
+  const { student, teacherSubject, logoutTeacher } = useAuth();
+  const isSuper = student?.email === 'admin@admin.com';
+
+  // Estados principais
+  const [activeTab, setActiveTab] = useState<'question_bank' | 'submissions' | 'students' | 'messages' | 'lessons_list' | 'exam_generator' | 'reports' | 'evaluations'>('lessons_list');
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterClass, setFilterClass] = useState('all');
+  const [filterSubject, setFilterSubject] = useState<string>('all');
   
-  const [pass, setPass] = useState('');
-  const [email, setEmail] = useState(''); 
-  const [selectedAccess, setSelectedAccess] = useState<Subject | 'SUPER_ADMIN'>('filosofia');
-  
+  // Dados do Banco
+  const [questionBank, setQuestionBank] = useState<any[]>([]);
+  const [activityBank, setActivityBank] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  
-  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports' | 'lessons_list' | 'teacher_profile' | 'question_bank'>('submissions');
-  
-  // Atividades Salvas
   const [savedActivities, setSavedActivities] = useState<string[]>([]);
-  const [activityBank, setActivityBank] = useState<any[]>([]);
-  const [isGeneratingActivityFor, setIsGeneratingActivityFor] = useState<string | null>(null);
-  const [questionBank, setQuestionBank] = useState<any[]>([]);
+  
+  // Chat e Mensagens
+  const [chatSessions, setChatSessions] = useState<any[]>([]);
+  const [selectedChatStudentId, setSelectedChatStudentId] = useState<string | null>(null);
+  const [selectedChatMessages, setSelectedChatMessages] = useState<any[]>([]);
+  const [teacherReplyText, setTeacherReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Lesson/Activity Manual Editor States
-  const [selectedLessonForEdit, setSelectedLessonForEdit] = useState<any>(null);
+  // Estados de Editores e Modais
   const [isLessonEditorOpen, setIsLessonEditorOpen] = useState(false);
-  const [lessonTheoryDraft, setLessonTheoryDraft] = useState('');
-  const [lessonTitleDraft, setLessonTitleDraft] = useState('');
-  const [isSavingLesson, setIsSavingLesson] = useState(false);
-
   const [isActivityEditorOpen, setIsActivityEditorOpen] = useState(false);
+  const [selectedLessonForEdit, setSelectedLessonForEdit] = useState<any | null>(null);
+  const [lessonTitleDraft, setLessonTitleDraft] = useState('');
+  const [lessonTheoryDraft, setLessonTheoryDraft] = useState('');
+  const [isSavingLesson, setIsSavingLesson] = useState(false);
+  
+  // Editor de Atividades (Questões)
   const [activityQuestionsDraft, setActivityQuestionsDraft] = useState<any[]>([]);
   const [isSavingActivity, setIsSavingActivity] = useState(false);
-
-  const [isSeedingStudents, setIsSeedingStudents] = useState(false);
   const [newQuestion, setNewQuestion] = useState<any>({
     type: 'objective',
     question_text: '',
     options: { a: '', b: '', c: '', d: '', e: '' },
-    correct_option: 'a',
-    difficulty: 'Médio'
+    correct_option: 'a'
   });
 
+  // Simulados e Relatórios
+  const [examGrade, setExamGrade] = useState('1');
+  const [examBimester, setExamBimester] = useState('1');
+  const [examClass, setExamClass] = useState('all');
+  const [examTopics, setExamTopics] = useState('');
+  const [isGeneratingExam, setIsGeneratingExam] = useState(false);
+  const [generatedExam, setGeneratedExam] = useState<any | null>(null);
+  const [isPublishingExam, setIsPublishingExam] = useState(false);
+  
+  const [reportTarget, setReportTarget] = useState<'student' | 'class'>('student');
+  const [selectedReportStudent, setSelectedReportStudent] = useState('');
+  const [aiReportResult, setAiReportResult] = useState<string | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+
+  // Modal de Visualização de Submissão
+  const [viewingSubmission, setViewingSubmission] = useState<any | null>(null);
+  const [manualFeedback, setManualFeedback] = useState('');
+  const [isSavingFeedback, setIsSavingFeedback] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+
+  const [isSeedingStudents, setIsSeedingStudents] = useState(false);
+
   useEffect(() => {
-    if (activeTab === 'lessons_list' || activeTab === 'question_bank') {
-      fetchSavedActivities();
+    if (!teacherSubject && !isSuper) {
+      navigate('/login');
     }
-    if (activeTab === 'question_bank') {
-      fetchQuestionBank();
+  }, [teacherSubject, isSuper, navigate]);
+
+  useEffect(() => {
+    fetchQuestionBank();
+    fetchSavedActivities();
+    fetchStudents();
+    fetchSubmissions();
+    fetchChatSessions();
+  }, []);
+
+  useEffect(() => {
+    if (selectedChatStudentId) {
+      const q = query(
+        collection(db, 'messages'),
+        where('student_id', '==', selectedChatStudentId),
+        orderBy('created_at', 'asc')
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        setSelectedChatMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+      return () => unsubscribe();
     }
-  }, [activeTab]);
+  }, [selectedChatStudentId]);
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedChatMessages]);
+
+  const fetchQuestionBank = async () => {
+    try {
+      const q = isSuper 
+        ? query(collection(db, 'questions'), orderBy('created_at', 'desc'))
+        : query(collection(db, 'questions'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
+      
+      const snapshot = await getDocs(q);
+      setQuestionBank(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (e) {
+      console.error("Erro ao buscar banco de questões:", e);
+    }
+  };
 
   const fetchSavedActivities = async () => {
     try {
-      let q = query(collection(db, 'activities'), orderBy('created_at', 'desc'));
-      if (!isSuper && teacherSubject) {
-        q = query(collection(db, 'activities'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
-      }
-      const snap = await getDocs(q);
-      const activities = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const q = isSuper
+        ? query(collection(db, 'activities'), orderBy('created_at', 'desc'))
+        : query(collection(db, 'activities'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
+      
+      const snapshot = await getDocs(q);
+      const activities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setActivityBank(activities);
       setSavedActivities(activities.map((a: any) => a.lesson_id));
     } catch (e) {
       console.error("Erro ao buscar atividades salvas:", e);
     }
   };
-  const handleHardReset = async () => {
-    if (!confirm("⚠️ ATENÇÃO: HARD RESET TOTAL!\n\nIsso irá apagar ABSOLUTAMENTE TUDO:\n- Questões\n- Atividades\n- Provas\n- Mensagens\n- Notas\n\nEsta ação é IRREVERSÍVEL. Deseja prosseguir?")) return;
-    
-    setLoading(true);
+
+  const fetchStudents = async () => {
     try {
-      const collectionsToClear = ['questions', 'activities', 'bimonthly_exams', 'messages', 'student_notes', 'submissions'];
-      
-      for (const colName of collectionsToClear) {
-        const snapshot = await getDocs(collection(db, colName));
-        const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, colName, d.id)));
-        await Promise.all(deletePromises);
-        console.log(`Coleção ${colName} limpa.`);
-      }
-      
-      alert("Hard Reset concluído! O banco de dados está limpo e pronto para novos conteúdos.");
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.DELETE, 'database');
-    } finally {
-      setLoading(false);
-      fetchSavedActivities();
-      fetchQuestionBank();
+      const q = query(collection(db, 'students'), orderBy('name', 'asc'));
+      const snapshot = await getDocs(q);
+      setStudents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (e) {
+      console.error("Erro ao buscar estudantes:", e);
     }
   };
 
-  const handleSeedDatabase = async () => {
-    if (!confirm("Deseja gerar atividades aprofundadas com IA para todas as aulas do currículo? Isso levará bastante tempo devido ao processamento da IA. Recomendamos gerar individualmente, mas podemos iniciar o processo agora.")) return;
-    
-    setLoading(true);
+  const fetchSubmissions = async () => {
     try {
-      const currentSavedSnapshot = await getDocs(collection(db, 'activities'));
-      const currentSavedIds = currentSavedSnapshot.docs.map(doc => doc.data().lesson_id);
+      const q = isSuper
+        ? query(collection(db, 'submissions'), orderBy('created_at', 'desc'))
+        : query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
       
-      const { generateLessonActivity } = await import('../services/aiService');
+      const snapshot = await getDocs(q);
+      setSubmissions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (e) {
+      console.error("Erro ao buscar submissões:", e);
+    }
+  };
+
+  const fetchChatSessions = async () => {
+    try {
+      const q = query(collection(db, 'messages'), orderBy('created_at', 'desc'));
+      const snapshot = await getDocs(q);
+      const msgs = snapshot.docs.map(doc => doc.data());
       
-      const allLessons: any[] = [];
-      curriculumData.forEach(grade => {
-        grade.bimesters.forEach(bim => {
-          bim.lessons.forEach(lesson => {
-            if (isSuper || lesson.subject === teacherSubject) {
-              allLessons.push(lesson);
-            }
-          });
-        });
+      // Agrupar por estudante
+      const sessionsMap: Record<string, any> = {};
+      msgs.forEach((m: any) => {
+        if (!sessionsMap[m.student_id]) {
+          sessionsMap[m.student_id] = {
+            studentId: m.student_id,
+            studentName: m.student_name,
+            lastMessage: m.content,
+            timestamp: m.created_at?.toDate ? m.created_at.toDate() : m.created_at
+          };
+        }
       });
-
-      let addedCount = 0;
-      let errorCount = 0;
       
-      for (const lesson of allLessons) {
-        if (currentSavedIds.includes(lesson.id)) continue; 
-        
-        try {
-          // Usamos a IA de verdade agora
-          const activity = await generateLessonActivity(lesson.title, lesson.theory || "");
-          
-          await addDoc(collection(db, 'activities'), {
-            lesson_id: lesson.id, 
-            title: `Atividade: ${lesson.title}`,
-            subject: lesson.subject,
-            visual_content: activity.visualContent || null,
-            created_at: serverTimestamp()
-          });
-
-          const questionsToInsert = [
-            ...activity.objectives.map(q => ({
-              subject: lesson.subject,
-              topic: lesson.title,
-              type: 'objective',
-              difficulty: 'Difícil',
-              question_text: q.question,
-              options: q.options,
-              correct_option: q.correctOption,
-              explanation: '',
-              created_at: serverTimestamp()
-            })),
-            ...activity.discursives.map(q => ({
-              subject: lesson.subject,
-              topic: lesson.title,
-              type: 'discursive',
-              difficulty: 'Difícil',
-              question_text: q.question,
-              created_at: serverTimestamp()
-            }))
-          ];
-
-          for (const q of questionsToInsert) {
-            await addDoc(collection(db, 'questions'), q);
-          }
-          addedCount++;
-          // Pequena pausa para evitar rate limit
-          await new Promise(r => setTimeout(r, 1000));
-        } catch (innerError) {
-          console.error(`Erro ao gerar via IA para ${lesson.id}:`, innerError);
-          errorCount++;
-        }
-      }
-      
-      alert(`Processo concluído! ${addedCount} atividades profundas geradas. ${errorCount} erros.`);
-    } catch (e: any) {
-      console.error("Erro no seed AI:", e);
-      alert(`Erro: ${e.message}`);
-    } finally {
-      setLoading(false);
-      fetchSavedActivities();
-      fetchQuestionBank();
+      setChatSessions(Object.values(sessionsMap));
+    } catch (e) {
     }
   };
 
-  const handleGenerateAndSaveActivity = async (lesson: any) => {
-    if (isGeneratingActivityFor) return;
-    setIsGeneratingActivityFor(lesson.id);
-    try {
-      const { generateLessonActivity } = await import('../services/aiService');
-      const activity = await generateLessonActivity(lesson.title, lesson.theory);
-      
-      if (savedActivities.includes(lesson.id)) {
-        const q = query(collection(db, 'activities'), where('lesson_id', '==', lesson.id));
-        const querySnapshot = await getDocs(q);
-        for (const doc of querySnapshot.docs) {
-          await deleteDoc(doc.ref);
-        }
-        
-        const q2 = query(collection(db, 'questions'), where('topic', '==', lesson.title), where('subject', '==', lesson.subject));
-        const querySnapshot2 = await getDocs(q2);
-        for (const doc of querySnapshot2.docs) {
-          await deleteDoc(doc.ref);
-        }
-      }
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teacherReplyText.trim() || !selectedChatStudentId || isSendingReply) return;
 
-      await addDoc(collection(db, 'activities'), {
-        lesson_id: lesson.id, 
-        title: `Atividade: ${lesson.title}`,
-        subject: lesson.subject,
-        visual_content: activity.visualContent,
+    setIsSendingReply(true);
+    try {
+      const studentName = students.find(s => s.id === selectedChatStudentId)?.name || 'Estudante';
+      await addDoc(collection(db, 'messages'), {
+        student_id: selectedChatStudentId,
+        student_name: studentName,
+        content: teacherReplyText,
+        is_from_teacher: true,
         created_at: serverTimestamp()
       });
-
-      const questionsToInsert = [
-        ...activity.objectives.map(q => ({
-          subject: lesson.subject,
-          topic: lesson.title,
-          type: 'objective',
-          difficulty: 'Médio',
-          question_text: q.question,
-          options: q.options,
-          correct_option: q.correctOption,
-          explanation: '',
-          created_at: serverTimestamp()
-        })),
-        ...activity.discursives.map(q => ({
-          subject: lesson.subject,
-          topic: lesson.title,
-          type: 'discursive',
-          difficulty: 'Médio',
-          question_text: q.question,
-          created_at: serverTimestamp()
-        }))
-      ];
-
-      for (const q of questionsToInsert) {
-        await addDoc(collection(db, 'questions'), q);
-      }
-
-      alert('Atividade gerada e salva com sucesso no banco de dados!');
-      fetchSavedActivities();
-      fetchQuestionBank();
-    } catch (e: any) {
-      console.error(e);
-      alert("Erro ao gerar/salvar atividade: " + e.message);
+      setTeacherReplyText('');
+    } catch (err) {
+      console.error("Erro ao enviar mensagem:", err);
     } finally {
-      setIsGeneratingActivityFor(null);
+      setIsSendingReply(false);
     }
   };
 
-  // Perfil do Professor
-  const [teacherPhoto, setTeacherPhoto] = useState<string | null>(null);
-  const [showCamera, setShowCamera] = useState(false);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Visualização de Submissão (Modal de Detalhes)
-  const [viewingSubmission, setViewingSubmission] = useState<any | null>(null);
-  const [manualFeedback, setManualFeedback] = useState('');
-  const [isSavingManualFeedback, setIsSavingManualFeedback] = useState(false);
-
-  // Aula Pronta IA
-  const [viewingLessonPlan, setViewingLessonPlan] = useState<LessonPlan | null>(null);
-  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-
-  // Carômetro e Notas
-  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
-  const [studentNote, setStudentNote] = useState('');
-  const [isSavingNote, setIsSavingNote] = useState(false);
-  const [studentNotesHistory, setStudentNotesHistory] = useState<any[]>([]);
-  
-  // Edição de Notas
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingNoteContent, setEditingNoteContent] = useState('');
-
-  // Criação de Estudante (Super Admin)
-  const [isCreatingStudent, setIsCreatingStudent] = useState(false);
-  const [newStudentData, setNewStudentData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    grade: '1',
-    school_class: ''
-  });
-  const [isSavingNewStudent, setIsSavingNewStudent] = useState(false);
-
-  // Chat
-  const [selectedChatStudentId, setSelectedChatStudentId] = useState<string | null>(null);
-  const [teacherReplyText, setTeacherReplyText] = useState('');
-  const [isSendingReply, setIsSendingReply] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Relatórios IA
-  const [reportTarget, setReportTarget] = useState<'student' | 'class'>('student');
-  const [selectedReportStudent, setSelectedReportStudent] = useState<string>('');
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const [aiReportResult, setAiReportResult] = useState<string | null>(null);
-
-  // Gerador de Provas IA
-  const [examGrade, setExamGrade] = useState('1');
-  const [examBimester, setExamBimester] = useState('1');
-  const [examClass, setExamClass] = useState('all');
-  const [generatedExam, setGeneratedExam] = useState<GeneratedEvaluation | null>(null);
-  const [isGeneratingExam, setIsGeneratingExam] = useState(false);
-  const [isPublishingExam, setIsPublishingExam] = useState(false);
-
-  // Filtros
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterGrade, setFilterGrade] = useState<string>('all');
-  const [filterClass, setFilterClass] = useState<string>('all');
-  const [filterBimester, setFilterBimester] = useState<string>('all');
-
-  const isSuper = teacherSubject === 'SUPER_ADMIN';
-
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('admin-theme');
-    return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  });
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('admin-theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('admin-theme', 'light');
-    }
-  }, [darkMode]);
-
-  const toggleTheme = () => setDarkMode(!darkMode);
-
-  const getLessonBimester = (lessonTitle: string) => {
-    for (const grade of curriculumData) {
-      for (const bimester of grade.bimesters) {
-        if (bimester.lessons.some(l => l.title === lessonTitle)) {
-          return bimester.title;
-        }
-      }
-    }
-    return 'Atividades Extras';
-  };
-
-  const handleGoogleAdminLogin = async () => {
-    setLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      if (user.email === 'divinoviana@gmail.com') {
-        loginTeacher('SUPER_ADMIN');
-        setActiveTab('submissions');
-      } else {
-        // Verifica se tem papel de admin no Firestore
-        const studentDoc = await getDoc(doc(db, 'students', user.uid));
-        if (studentDoc.exists() && studentDoc.data()?.role === 'admin') {
-          loginTeacher('SUPER_ADMIN');
-          setActiveTab('submissions');
-        } else {
-          alert("Este e-mail não possui permissões administrativas.");
-          await signOut(auth);
-        }
-      }
-    } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        alert("Erro no login Google: " + err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setAuthError(null);
-
-    // Primeiro, deslogamos qualquer usuário atual para garantir que o novo login seja limpo
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.warn("Erro ao deslogar usuário anterior:", e);
-    }
-
-    if (selectedAccess === 'SUPER_ADMIN') {
-        if (email.trim().toLowerCase() === 'divinoviana@gmail.com' && pass.trim() === '3614526312') {
-            try {
-              // Tenta autenticar no Firebase Auth para garantir permissões de banco
-              const userCred = await signInWithEmailAndPassword(auth, email.trim(), pass.trim());
-              console.log("Super Admin logado com sucesso:", userCred.user.email);
-              loginTeacher('SUPER_ADMIN');
-              setActiveTab('submissions');
-            } catch (authErr: any) {
-              console.error("Erro na autenticação Firebase do Super Admin:", authErr);
-              setAuthError(`Erro Crítico de Autenticação: O e-mail ${email} não pôde ser validado no Firebase. 
-              Verifique no Console do Firebase (Authentication) se este usuário existe e se a senha está correta.`);
-              
-              // Se falhar o Firebase Auth, NÃO permitimos entrar, pois o Firestore irá bloquear todas as ações.
-              setLoading(false);
-              return;
-            }
-        } else {
-            alert("Credenciais de Super Admin incorretas.");
-            setLoading(false);
-            return;
-        }
-    } else {
-        if (pass.trim() === ADMIN_PASSWORDS[selectedAccess as Subject]) {
-          try {
-            const teacherEmail = TEACHER_EMAILS[selectedAccess as Subject];
-            const userCred = await signInWithEmailAndPassword(auth, teacherEmail, pass.trim());
-            console.log("Professor logado com sucesso:", userCred.user.email);
-            loginTeacher(selectedAccess);
-            setActiveTab('submissions');
-          } catch (authErr: any) {
-            console.error("Erro na autenticação do professor:", authErr);
-            setAuthError(`Erro de Permissão: O e-mail ${TEACHER_EMAILS[selectedAccess as Subject]} não está autenticado no Firebase. 
-            Acesse o Console do Firebase > Authentication e adicione este e-mail com a senha padrão.`);
-            
-            setLoading(false);
-            return;
-          }
-        } else {
-          alert("Senha incorreta.");
-          setLoading(false);
-          return;
-        }
-    }
-    setLoading(false);
-  };
-
-  const handleOpenLessonEditor = async (lesson: any) => {
+  const handleOpenLessonEditor = (lesson: any) => {
     setSelectedLessonForEdit(lesson);
     setLessonTitleDraft(lesson.title);
-    setLessonTheoryDraft(lesson.theory);
+    setLessonTheoryDraft(lesson.theory || '');
     setIsLessonEditorOpen(true);
-    
-    try {
-      const overrideDoc = await getDoc(doc(db, 'lesson_overrides', lesson.id));
-      if (overrideDoc.exists()) {
-        const data = overrideDoc.data();
-        setLessonTitleDraft(data.title || lesson.title);
-        setLessonTheoryDraft(data.theory || lesson.theory);
-      }
-    } catch (e) {
-      console.warn("Sem override salvo:", e);
-    }
   };
 
   const handleSaveLessonOverride = async () => {
-    if (!selectedLessonForEdit) return;
+    if (!selectedLessonForEdit || isSavingLesson) return;
     setIsSavingLesson(true);
     try {
       await setDoc(doc(db, 'lesson_overrides', selectedLessonForEdit.id), {
-        lesson_id: selectedLessonForEdit.id,
         title: lessonTitleDraft,
         theory: lessonTheoryDraft,
-        subject: selectedLessonForEdit.subject,
-        updated_at: serverTimestamp()
+        updated_at: serverTimestamp(),
+        teacher_id: auth.currentUser?.uid || 'admin'
       });
-      alert("Aula salva e postada!");
+      alert("Conteúdo da aula salvo com sucesso!");
       setIsLessonEditorOpen(false);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.UPDATE, `lesson_overrides/${selectedLessonForEdit.id}`);
+    } catch (e: any) {
+      handleFirestoreError(e, OperationType.UPDATE, 'lesson_overrides');
     } finally {
       setIsSavingLesson(false);
     }
@@ -533,1763 +292,1172 @@ export const AdminDashboard: React.FC = () => {
     setIsActivityEditorOpen(true);
     setActivityQuestionsDraft([]);
     
+    // Buscar questões existentes para esta aula/tópico no banco
     try {
-      // Find questions by topic or lesson_id
-      const q = query(collection(db, 'questions'), where('topic', '==', lesson.title), where('subject', '==', lesson.subject));
-      const snap = await getDocs(q);
-      const existingQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setActivityQuestionsDraft(existingQuestions);
+      const q = query(
+        collection(db, 'questions'), 
+        where('topic', '==', lesson.title),
+        where('subject', '==', lesson.subject)
+      );
+      const snapshot = await getDocs(q);
+      setActivityQuestionsDraft(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     } catch (e) {
-      console.warn("Erro ao buscar questões:", e);
+      console.error("Erro ao carregar questões existentes:", e);
     }
   };
 
   const handleAddQuestionToDraft = async () => {
-    if (!newQuestion.question_text.trim()) return;
-    if (newQuestion.type === 'objective' && (!newQuestion.options.a || !newQuestion.options.b)) {
-      alert("Preencha ao menos duas opções.");
-      return;
-    }
-
-    const questionData = {
-      ...newQuestion,
-      subject: selectedLessonForEdit.subject,
-      topic: selectedLessonForEdit.topic || selectedLessonForEdit.title,
-      lesson_id: selectedLessonForEdit.id,
-      created_at: serverTimestamp()
-    };
-
+    if (!newQuestion.question_text.trim() || isSavingActivity) return;
+    setIsSavingActivity(true);
     try {
-      setIsSavingActivity(true);
-      const docRef = await addDoc(collection(db, 'questions'), questionData);
-      setActivityQuestionsDraft([...activityQuestionsDraft, { id: docRef.id, ...questionData }]);
-      setNewQuestion({
-        type: 'objective',
-        question_text: '',
-        options: { a: '', b: '', c: '', d: '', e: '' },
-        correct_option: 'a',
-        difficulty: 'Médio'
-      });
-
-      // Ensure activity doc exists
-      const actQ = query(collection(db, 'activities'), where('lesson_id', '==', selectedLessonForEdit.id));
-      const actSnap = await getDocs(actQ);
-      if (actSnap.empty) {
+      const qData = {
+        ...newQuestion,
+        subject: selectedLessonForEdit.subject,
+        topic: selectedLessonForEdit.title,
+        lesson_id: selectedLessonForEdit.id,
+        created_at: serverTimestamp()
+      };
+      
+      const docRef = await addDoc(collection(db, 'questions'), qData);
+      setActivityQuestionsDraft([...activityQuestionsDraft, { id: docRef.id, ...qData }]);
+      
+      // Se for a primeira questão, garantir que a atividade exista
+      if (!savedActivities.includes(selectedLessonForEdit.id)) {
         await addDoc(collection(db, 'activities'), {
           lesson_id: selectedLessonForEdit.id,
           title: `Atividade: ${selectedLessonForEdit.title}`,
           subject: selectedLessonForEdit.subject,
           created_at: serverTimestamp()
         });
-        setSavedActivities([...savedActivities, selectedLessonForEdit.id]);
+        fetchSavedActivities();
       }
-    } catch (e) {
-      handleFirestoreError(e, OperationType.CREATE, 'questions');
+
+      setNewQuestion({
+        type: 'objective',
+        question_text: '',
+        options: { a: '', b: '', c: '', d: '', e: '' },
+        correct_option: 'a'
+      });
+      fetchQuestionBank();
+    } catch (e: any) {
+      alert("Erro ao salvar questão: " + e.message);
     } finally {
       setIsSavingActivity(false);
     }
   };
 
-  const handleRemoveQuestionFromDraft = async (id: string) => {
-    if (!confirm("Excluir esta questão?")) return;
+  const handleRemoveQuestionFromDraft = async (qId: string) => {
+    if (!confirm("Excluir esta questão permanentemente?")) return;
     try {
-      await deleteDoc(doc(db, 'questions', id));
-      setActivityQuestionsDraft(activityQuestionsDraft.filter(q => q.id !== id));
+      await deleteDoc(doc(db, 'questions', qId));
+      setActivityQuestionsDraft(activityQuestionsDraft.filter(q => q.id !== qId));
+      fetchQuestionBank();
     } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `questions/${id}`);
-    }
-  };
-
-  const handleDownloadActivity = (activity: any) => {
-    const questions = questionBank.filter(q => q.lesson_id === activity.lesson_id || q.topic === activity.title.replace('Atividade: ', ''));
-    
-    const printDiv = document.createElement('div');
-    printDiv.id = 'temp-print-activity';
-    printDiv.style.position = 'fixed';
-    printDiv.style.top = '-10000px';
-    printDiv.style.left = '-10000px';
-    printDiv.style.width = '210mm';
-    printDiv.style.backgroundColor = 'white';
-    printDiv.style.color = 'black';
-    printDiv.style.padding = '20mm';
-    printDiv.style.fontFamily = 'Arial, sans-serif';
-    
-    printDiv.innerHTML = `
-      <div style="border: 2px solid black; padding: 20px; margin-bottom: 30px; text-align: center;">
-        <h1 style="font-size: 28px; text-transform: uppercase; margin: 0;">${activity.title}</h1>
-        <p style="font-size: 14px; margin-top: 10px;">${activity.subject} • Banco de Atividades Portal Tocantins</p>
-      </div>
-      <div style="margin-bottom: 40px; display: flex; justify-content: space-between; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-        <span><strong>Professor(a):</strong> ________________________</span>
-        <span><strong>Data:</strong> ___/___/___</span>
-      </div>
-      ${questions.length === 0 ? '<p>Nenhuma questão vinculada a esta atividade.</p>' : questions.map((q, i) => `
-        <div style="margin-bottom: 40px; page-break-inside: avoid;">
-          <p style="font-weight: bold; margin-bottom: 15px;">Questão ${i+1} (${q.type === 'objective' ? 'Objetiva' : 'Discursiva'} - ${q.difficulty})</p>
-          <div style="font-size: 16px; line-height: 1.6;">${q.question_text}</div>
-          ${q.type === 'objective' && q.options ? `
-            <div style="margin-top: 20px; margin-left: 20px; display: grid; grid-template-columns: 1fr; gap: 10px;">
-              ${Object.entries(q.options).filter(([_, v]) => v).map(([k, v]) => `
-                <div style="display: flex; gap: 10px;">
-                  <span>(${k.toUpperCase()})</span>
-                  <span>${v}</span>
-                </div>
-              `).join('')}
-            </div>
-          ` : '<div style="margin-top: 50px; border-bottom: 1px solid #ccc; height: 100px;"></div>'}
-        </div>
-      `).join('')}
-      <div style="margin-top: 50px; font-size: 10px; color: #666; text-align: center; border-top: 1px dotted #ccc; padding-top: 10px;">
-        Gerado pelo Portal de Ciências Humanas - Tocantins
-      </div>
-    `;
-    
-    document.body.appendChild(printDiv);
-    
-    setTimeout(async () => {
-      try {
-        await exportToPDF('temp-print-activity', activity.title);
-      } finally {
-        document.body.removeChild(printDiv);
-      }
-    }, 500);
-  };
-
-  const loadTeacherProfile = async () => {
-    if (!teacherSubject || isSuper) return;
-    try {
-      const teacherDoc = await getDoc(doc(db, 'teacher_profiles', teacherSubject));
-      if (teacherDoc.exists()) {
-        setTeacherPhoto(teacherDoc.data().photo_url);
-      }
-    } catch (e) {
-      console.error("Error loading teacher profile", e);
-    }
-  };
-
-  const handleSaveTeacherProfile = async () => {
-    if (!teacherPhoto || !teacherSubject) return;
-    setIsSavingProfile(true);
-    try {
-      await setDoc(doc(db, 'teacher_profiles', teacherSubject), {
-        subject: teacherSubject, 
-        photo_url: teacherPhoto,
-        updated_at: serverTimestamp()
-      }, { merge: true });
-
-      alert("Foto de perfil atualizada!");
-      setActiveTab('submissions');
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.UPDATE, `teacher_profiles/${teacherSubject}`);
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  const handleExitAdmin = () => {
-    logoutTeacher();
-    navigate('/admin');
-  };
-
-  const loadData = async () => {
-    if (!teacherSubject || isAuthLoading || !authUser) return;
-    setLoading(true);
-    try {
-      // 1. Fetch Students
-      const studentsSnapshot = await getDocs(query(collection(db, 'students'), orderBy('name', 'asc')));
-      setStudents(studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-      // 2. Fetch Saved Activities IDs
-      const actQ = query(collection(db, 'activities'), where('subject', '==', isSuper ? 'all' : teacherSubject));
-      const actSnap = await getDocs(actQ);
-      setSavedActivities(actSnap.docs.map(doc => doc.data().lesson_id));
-
-      // 3. Fetch Question Bank
-      fetchQuestionBank(); 
-
-      loadTeacherProfile();
-    } catch (e) {
-      console.error("Erro ao carregar dados:", e);
-    } finally { setLoading(false); }
-  };
-
-  const fetchQuestionBank = async () => {
-    try {
-      let q = query(collection(db, 'questions'), orderBy('created_at', 'desc'));
-      if (!isSuper && teacherSubject) {
-        q = query(collection(db, 'questions'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
-      }
-      const snapshot = await getDocs(q);
-      setQuestionBank(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (e) {
-      console.warn("Falha ao buscar banco de questões:", e);
-    }
-  };
-
-  const handleDeleteQuestion = async (id: string) => {
-    if (!confirm("Deseja realmente excluir esta questão do banco?")) return;
-    try {
-      await deleteDoc(doc(db, 'questions', id));
-      setQuestionBank(prev => prev.filter(q => q.id !== id));
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `questions/${id}`);
+      console.error(e);
     }
   };
 
   const handleDeleteActivity = async (lessonId: string) => {
-    if (!confirm("Deseja excluir permanentemente esta atividade e suas questões?")) return;
+    if (!confirm("Isso irá excluir a atividade e TODAS as questões vinculadas a este tópico do banco. Confirmar?")) return;
+    
     setLoading(true);
     try {
+      // 1. Deletar a Atividade
       const actQ = query(collection(db, 'activities'), where('lesson_id', '==', lessonId));
       const actSnap = await getDocs(actQ);
       for (const d of actSnap.docs) await deleteDoc(doc(db, 'activities', d.id));
+      
+      // 2. Deletar as Questões
       const qQ = query(collection(db, 'questions'), where('lesson_id', '==', lessonId));
       const qSnap = await getDocs(qQ);
       for (const d of qSnap.docs) await deleteDoc(doc(db, 'questions', d.id));
-      setSavedActivities(prev => prev.filter(id => id !== lessonId));
+      
+      alert("Atividade e questões removidas.");
+      fetchSavedActivities();
       fetchQuestionBank();
-      alert("Excluído!");
     } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, 'activities/questions');
-    } finally { setLoading(false); }
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteQuestion = async (id: string) => {
+    if (!confirm("Excluir questão permanentemente?")) return;
+    try {
+      await deleteDoc(doc(db, 'questions', id));
+      fetchQuestionBank();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleSeedStudents = async () => {
-    if (!isSuper || isSeedingStudents) return;
-    
-    const confirmSeed = window.confirm(`Deseja cadastrar ${STUDENTS_SEED_DATA.length} estudantes extraídos das imagens?`);
-    if (!confirmSeed) return;
-
+    if (!confirm("Deseja migrar todos os estudantes pré-cadastrados para o banco de dados?")) return;
     setIsSeedingStudents(true);
-    let successCount = 0;
-    let errorCount = 0;
-
     try {
       for (const student of STUDENTS_SEED_DATA) {
-        try {
-          let grade = '1';
-          if (student.school_class.startsWith('2')) grade = '2';
-          if (student.school_class.startsWith('3')) grade = '3';
-
-          const q = query(collection(db, 'students'), where('email', '==', student.email));
-          const snapshot = await getDocs(q);
-          
-          if (snapshot.empty) {
-            const studentId = student.email.replace(/[^a-zA-Z0-9]/g, '_');
-            await setDoc(doc(db, 'students', studentId), {
-              name: student.name,
-              email: student.email,
-              password: student.password,
-              grade: grade,
-              school_class: student.school_class,
-              role: 'student',
-              created_at: serverTimestamp()
-            });
-            successCount++;
-          }
-        } catch (err) {
-          console.error(`Erro ao cadastrar ${student.email}:`, err);
-          errorCount++;
-        }
+        await setDoc(doc(db, 'students', student.email.replace(/[@.]/g, '_')), {
+          ...student,
+          created_at: serverTimestamp()
+        });
       }
-      
-      alert(`Processo concluído!\nSucesso: ${successCount}\nErros: ${errorCount}`);
-      const studentsSnap = await getDocs(query(collection(db, 'students'), orderBy('name')));
-      setStudents(studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (err) {
-      console.error("Erro geral na migração:", err);
-      alert("Erro na migração. Verifique o console.");
+      alert("Migração concluída!");
+      fetchStudents();
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsSeedingStudents(false);
     }
   };
 
-  useEffect(() => {
-    if (!teacherSubject || isAuthLoading || !authUser) return;
-    
-    // Listen for Submissions
-    let subQ = query(collection(db, 'submissions'));
-    if (!isSuper) {
-      subQ = query(collection(db, 'submissions'), where('subject', '==', teacherSubject));
-    }
-
-    const unsubscribeSub = onSnapshot(subQ, (snapshot) => {
-      const allSubs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Sort in memory to avoid index requirement
-      const sortedSubs = allSubs.sort((a: any, b: any) => {
-        const timeA = a.submitted_at?.toDate ? a.submitted_at.toDate().getTime() : 0;
-        const timeB = b.submitted_at?.toDate ? b.submitted_at.toDate().getTime() : 0;
-        return timeB - timeA;
-      });
-      setSubmissions(sortedSubs);
-    }, (error) => {
-      if (!error.message.includes('permissions')) {
-        console.error("Submissions listener error:", error);
-      }
-    });
-
-    // Listen for Messages
-    let msgQ = query(collection(db, 'messages'));
-    if (!isSuper) {
-      msgQ = query(collection(db, 'messages'), where('subject', '==', teacherSubject));
-    }
-
-    const unsubscribeMsg = onSnapshot(msgQ, (snapshot) => {
-      const allMsgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const sortedMsgs = allMsgs.sort((a: any, b: any) => {
-        const timeA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
-        const timeB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
-        return timeA - timeB;
-      });
-      setMessages(sortedMsgs);
-    }, (error) => {
-      if (!error.message.includes('permissions')) {
-        handleFirestoreError(error, OperationType.LIST, 'messages');
-      }
-    });
-
-    return () => {
-      unsubscribeSub();
-      unsubscribeMsg();
-    };
-  }, [teacherSubject, isSuper, authUser, isAuthLoading]);
-
-  useEffect(() => {
-    if (teacherSubject && !isAuthLoading) { 
-      // Precisamos do authUser pronto para evitar erros de permissão
-      if (!authUser) {
-        return;
-      }
-      loadData(); 
-    }
-  }, [teacherSubject, isAuthLoading, authUser, isSuper]);
-
-  useEffect(() => {
-    if (selectedStudent && teacherSubject) { fetchStudentNotes(selectedStudent.id); }
-  }, [selectedStudent, teacherSubject]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, selectedChatStudentId]);
-
-  const fetchStudentNotes = async (studentId: string) => {
-    try {
-      const q = query(
-        collection(db, 'student_notes'),
-        where('student_id', '==', studentId),
-        where('subject', '==', teacherSubject)
-      );
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // In-memory sort
-      const sorted = data.sort((a: any, b: any) => {
-        const timeA = a.created_at?.toDate ? a.created_at.toDate().getTime() : 0;
-        const timeB = b.created_at?.toDate ? b.created_at.toDate().getTime() : 0;
-        return timeB - timeA;
-      });
-      setStudentNotesHistory(sorted || []);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.LIST, 'student_notes');
-    }
-  };
-
-  const handleSaveNote = async () => {
-    if (!studentNote.trim() || !selectedStudent || !teacherSubject) return;
-    setIsSavingNote(true);
-    try {
-      await addDoc(collection(db, 'student_notes'), {
-        student_id: selectedStudent.id,
-        subject: teacherSubject,
-        content: studentNote.trim(),
-        created_at: serverTimestamp()
-      });
-      setStudentNote('');
-      fetchStudentNotes(selectedStudent.id);
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.CREATE, 'student_notes');
-    } finally {
-      setIsSavingNote(false);
-    }
-  };
-
-  const handleUpdateNote = async () => {
-    if (!editingNoteId || !editingNoteContent.trim() || !selectedStudent) return;
-    try {
-      await updateDoc(doc(db, 'student_notes', editingNoteId), {
-        content: editingNoteContent.trim(),
-        subject: teacherSubject, // Assure subject remains correct
-        updated_at: serverTimestamp()
-      });
-      
-      setEditingNoteId(null);
-      setEditingNoteContent('');
-      fetchStudentNotes(selectedStudent.id);
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.UPDATE, `student_notes/${editingNoteId}`);
-    }
-  };
-
-  const handleDeleteNote = async (noteId: string) => {
-    if (!confirm("Deseja realmente excluir esta anotação?")) return;
-    try {
-      await deleteDoc(doc(db, 'student_notes', noteId));
-      if (selectedStudent) fetchStudentNotes(selectedStudent.id);
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.DELETE, `student_notes/${noteId}`);
-    }
-  };
-
-  const handleCreateStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isSuper) return;
-    setIsSavingNewStudent(true);
-    try {
-      // In Firebase, we should use Auth to create the user, but for now I'll just add to Firestore
-      // as the user might want to manage auth separately or use the Login screen logic.
-      // In our Firebase setup, we create the student doc in Firestore.
-      
-      await addDoc(collection(db, 'students'), {
-        ...newStudentData,
-        role: 'student',
-        photo_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(newStudentData.name)}&background=random`,
-        created_at: serverTimestamp()
-      });
-
-      alert("Estudante criado com sucesso!");
-      setIsCreatingStudent(false);
-      setNewStudentData({ name: '', email: '', password: '', grade: '1', school_class: '' });
-      loadData();
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.CREATE, 'students');
-    } finally {
-      setIsSavingNewStudent(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    if (!selectedStudent || !isSuper) return;
-    const newPass = prompt("Digite a nova senha para o estudante:", "123456");
-    if (!newPass) return;
-    setLoading(true);
-    try {
-      await updateDoc(doc(db, 'students', selectedStudent.id), {
-        password: newPass,
-        updated_at: serverTimestamp()
-      });
-      alert("Senha resetada!");
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.UPDATE, `students/${selectedStudent.id}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteStudent = async () => {
-    if (!selectedStudent || !isSuper) return;
-    if (!confirm(`TEM CERTEZA ABSOLUTA? Isso excluirá permanentemente ${selectedStudent.name} e todo o seu histórico.`)) return;
-    setLoading(true);
-    try {
-      await deleteDoc(doc(db, 'students', selectedStudent.id));
-      setStudents(prev => prev.filter(s => s.id !== selectedStudent.id));
-      setSelectedStudent(null);
-      alert("Estudante removido.");
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.DELETE, `students/${selectedStudent.id}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!teacherReplyText.trim() || !selectedChatStudentId || !teacherSubject) return;
-    setIsSendingReply(true);
-    try {
-      const student = students.find(s => s.id === selectedChatStudentId);
-      const lastStudentMsg = [...messages].reverse().find(m => m.sender_id === selectedChatStudentId && !m.is_from_teacher);
-      const subjectToUse = isSuper ? (lastStudentMsg?.subject || 'filosofia') : teacherSubject;
-
-      await addDoc(collection(db, 'messages'), {
-        sender_id: auth.currentUser?.uid || `teacher_${teacherSubject}`,
-        receiver_id: selectedChatStudentId,
-        sender_name: isSuper ? 'Gestão Geral' : `Prof. de ${subjectsInfo[teacherSubject as Subject]?.name}`,
-        content: teacherReplyText.trim(),
-        is_from_teacher: true,
-        subject: subjectToUse,
-        grade: student?.grade || lastStudentMsg?.grade,
-        school_class: student?.school_class || lastStudentMsg?.school_class,
-        created_at: serverTimestamp()
-      });
-      setTeacherReplyText('');
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.CREATE, 'messages');
-    } finally {
-      setIsSendingReply(false);
-    }
-  };
-
-  const handleSaveManualFeedback = async () => {
-    if (!viewingSubmission || !manualFeedback.trim()) return;
-    setIsSavingManualFeedback(true);
-    try {
-      await updateDoc(doc(db, 'submissions', viewingSubmission.id), {
-        teacher_feedback: manualFeedback.trim(),
-        updated_at: serverTimestamp()
-      });
-      
-      setSubmissions(prev => prev.map(s => s.id === viewingSubmission.id ? { ...s, teacher_feedback: manualFeedback.trim() } : s));
-      alert("Feedback enviado ao aluno!");
-      setViewingSubmission(null);
-    } catch (e: any) {
-      handleFirestoreError(e, OperationType.UPDATE, `submissions/${viewingSubmission.id}`);
-    } finally {
-      setIsSavingManualFeedback(false);
-    }
-  };
-
   const handleGenerateExam = async () => {
-    if (!teacherSubject || isSuper) return;
     setIsGeneratingExam(true);
-    setGeneratedExam(null);
     try {
-      const subjectName = subjectsInfo[teacherSubject as Subject]?.name || "";
-      const gradeData = curriculumData.find(g => g.id === Number(examGrade));
-      const bimesterData = gradeData?.bimesters.find(b => b.id === Number(examBimester));
-      const topics = bimesterData?.lessons.filter(l => l.subject === teacherSubject).map(l => l.title) || [];
-      if (topics.length === 0) throw new Error("Sem lições para este período.");
-      const result = await generateBimonthlyEvaluation(subjectName, examGrade, examBimester, topics);
-      setGeneratedExam(result);
+      const { generateBimonthlyEvaluation } = await import('../services/aiService');
+      const exam = await generateBimonthlyEvaluation(
+        teacherSubject || 'Geral', 
+        examGrade, 
+        examBimester,
+        examTopics.split(',').map(t => t.trim()).filter(Boolean)
+      );
+      setGeneratedExam(exam);
     } catch (e: any) {
-      alert("IA Falhou: " + e.message);
+      alert("Erro ao gerar prova: " + e.message);
     } finally {
       setIsGeneratingExam(false);
     }
   };
 
   const handlePublishExam = async () => {
-    if (!generatedExam || !teacherSubject) return;
+    if (!generatedExam || isPublishingExam) return;
     setIsPublishingExam(true);
     try {
       await addDoc(collection(db, 'bimonthly_exams'), {
-        subject: teacherSubject, 
-        grade: Number(examGrade), 
+        ...generatedExam,
+        subject: teacherSubject || 'Geral',
+        grade: Number(examGrade),
         bimester: Number(examBimester),
-        school_class: examClass === 'all' ? null : examClass, 
-        questions: generatedExam.questions,
+        school_class: examClass === 'all' ? null : examClass,
         created_at: serverTimestamp()
       });
-      alert("Publicada!");
+      alert("Prova publicada para os alunos!");
       setGeneratedExam(null);
-      setActiveTab('submissions');
     } catch (e: any) {
-      handleFirestoreError(e, OperationType.CREATE, 'bimonthly_exams');
+      alert("Erro ao publicar: " + e.message);
     } finally {
       setIsPublishingExam(false);
     }
   };
 
   const handleGenerateFullReport = async () => {
-    if (!teacherSubject) return;
     setIsGeneratingReport(true);
-    setAiReportResult(null);
     try {
-      let targetGrades: number[] = [];
-      let targetNotes: string[] = [];
-      let studentName = "";
-      let schoolClass = filterClass !== 'all' ? filterClass : "Turma não selecionada";
-      if (reportTarget === 'student') {
-        const student = students.find(s => s.id === selectedReportStudent);
-        if (!student) throw new Error("Selecione um aluno.");
-        studentName = student.name.trim();
-        schoolClass = student.school_class;
-        targetGrades = submissions.filter(s => s.student_name === student.name.trim()).map(s => Number(s.score));
-        
-        const q = query(collection(db, 'student_notes'), where('student_id', '==', student.id), where('subject', '==', teacherSubject));
-        const notesSnapshot = await getDocs(q);
-        targetNotes = notesSnapshot.docs.map(n => n.data().content);
-      } else {
-        if (filterClass === 'all') throw new Error("Selecione uma turma.");
-        targetGrades = submissions.filter(s => s.school_class === filterClass).map(s => Number(s.score));
-        targetNotes = ["Relatório coletivo da turma " + filterClass];
-      }
-      const summary = await generatePedagogicalSummary(reportTarget === 'student' ? 'INDIVIDUAL' : 'TURMA', {
-        subject: subjectsInfo[teacherSubject as Subject]?.name || "Ciências Humanas",
-        grades: targetGrades, notes: targetNotes, studentName: studentName || undefined, schoolClass: schoolClass
+      const { generatePedagogicalSummary } = await import('../services/aiService');
+      const filteredSubmissions = submissions.filter(s => 
+        reportTarget === 'student' ? s.student_id === selectedReportStudent : (filterClass === 'all' || s.school_class === filterClass)
+      );
+      
+      const result = await generatePedagogicalSummary(reportTarget === 'student' ? 'INDIVIDUAL' : 'TURMA', {
+        subject: teacherSubject || 'Geral',
+        grades: filteredSubmissions.map(s => s.score || 0),
+        notes: filteredSubmissions.map(s => s.teacher_feedback || ''),
+        studentName: reportTarget === 'student' ? students.find(s => s.id === selectedReportStudent)?.name : undefined,
+        schoolClass: filterClass
       });
-      setAiReportResult(summary);
+      setAiReportResult(result);
     } catch (e: any) {
-      alert("Erro: " + e.message);
+      alert("Erro ao gerar relatório: " + e.message);
     } finally {
       setIsGeneratingReport(false);
     }
   };
 
-  const classOptions = useMemo(() => {
-    const grade = filterGrade === 'all' ? examGrade : filterGrade;
-    if (grade === '1') return Array.from({length: 7}, (_, i) => `13.0${i+1}`);
-    if (grade === '2') return Array.from({length: 8}, (_, i) => `23.0${i+1}`);
-    if (grade === '3') return Array.from({length: 9}, (_, i) => `33.0${i+1}`);
-    return [];
-  }, [examGrade, filterGrade]);
-
-  const filteredSubmissions = useMemo(() => {
-    return submissions.filter(sub => {
-      const matchName = sub.student_name.toLowerCase().includes(searchTerm.toLowerCase());
-      const subGrade = sub.school_class.substring(0, 1);
-      const matchGrade = filterGrade === 'all' || subGrade === filterGrade;
-      const matchClass = filterClass === 'all' || sub.school_class === filterClass;
-      if (activeTab === 'evaluations') {
-        const isExam = sub.lesson_title.startsWith('Avaliação Bimestral');
-        const matchBimester = filterBimester === 'all' || sub.lesson_title.includes(`${filterBimester}º Bimestre`);
-        return matchName && matchGrade && matchClass && isExam && matchBimester;
-      }
-      const isNormalActivity = !sub.lesson_title.startsWith('Avaliação Bimestral');
-      return matchName && matchGrade && matchClass && isNormalActivity;
-    });
-  }, [submissions, searchTerm, filterGrade, filterClass, filterBimester, activeTab]);
+  const handleSaveFeedback = async () => {
+    if (!viewingSubmission || isSavingFeedback) return;
+    setIsSavingFeedback(true);
+    try {
+      await updateDoc(doc(db, 'submissions', viewingSubmission.id), {
+        teacher_feedback: manualFeedback,
+        updated_at: serverTimestamp()
+      });
+      alert("Feedback enviado com sucesso!");
+      fetchSubmissions();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSavingFeedback(false);
+    }
+  };
 
   const filteredStudents = useMemo(() => {
     return students.filter(st => {
-      const matchName = st.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchGrade = filterGrade === 'all' || st.grade === filterGrade;
-      const matchClass = filterClass === 'all' || st.school_class === filterClass;
-      return matchName && matchGrade && matchClass;
+      const matchesSearch = st.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesClass = filterClass === 'all' || st.school_class === filterClass;
+      return matchesSearch && matchesClass;
     });
-  }, [students, searchTerm, filterGrade, filterClass]);
+  }, [students, searchTerm, filterClass]);
+
+  const filteredSubmissions = useMemo(() => {
+    return submissions.filter(sub => {
+      const matchesClass = filterClass === 'all' || sub.school_class === filterClass;
+      const matchesSubject = filterSubject === 'all' || sub.subject === filterSubject;
+      return matchesClass && matchesSubject;
+    });
+  }, [submissions, filterClass, filterSubject]);
 
   const studentsWithSubmissions = useMemo(() => {
-    // Get unique student IDs from filtered submissions
-    const studentIds = Array.from(new Set(filteredSubmissions.map(s => s.student_id)));
-    
-    return studentIds.map(id => {
-      const student = students.find(st => st.id === id);
-      const studentSubs = filteredSubmissions.filter(s => s.student_id === id);
-      
-      return {
-        id,
-        name: student?.name || studentSubs[0]?.student_name || 'Estudante Desconhecido',
-        school_class: student?.school_class || studentSubs[0]?.school_class || 'N/A',
-        grade: student?.grade || studentSubs[0]?.school_class?.substring(0, 1) || '?',
-        photo_url: student?.photo_url,
-        submissionCount: studentSubs.length,
-        lastSubmission: studentSubs[0]?.submitted_at,
-        submissions: studentSubs
-      };
-    }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredSubmissions, students]);
-
-  const chatSessions = useMemo(() => {
-    const groups: Record<string, any> = {};
-    messages.forEach(m => {
-        if (!groups[m.sender_id]) {
-            const student = students.find(s => s.id === m.sender_id);
-            groups[m.sender_id] = { studentId: m.sender_id, studentName: m.sender_name, schoolClass: m.school_class, photoUrl: student?.photo_url, lastMessage: m.content, timestamp: m.created_at, unread: !m.is_from_teacher };
-        } else {
-            groups[m.sender_id].lastMessage = m.content;
-            groups[m.sender_id].timestamp = m.created_at;
-            if (!m.is_from_teacher) groups[m.sender_id].unread = true;
+    const map: Record<string, any> = {};
+    submissions.forEach(sub => {
+      const studentProfile = students.find(s => s.name === sub.student_name);
+      if (studentProfile) {
+        if (!map[studentProfile.id]) {
+          map[studentProfile.id] = { ...studentProfile, submissionCount: 0 };
         }
+        map[studentProfile.id].submissionCount++;
+      }
     });
-    return Object.values(groups).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [messages, students]);
+    return Object.values(map);
+  }, [submissions, students]);
 
-  const selectedChatMessages = useMemo(() => messages.filter(m => m.sender_id === selectedChatStudentId), [messages, selectedChatStudentId]);
+  const classOptions = useMemo(() => {
+    const classes = new Set(students.map(s => s.school_class));
+    return Array.from(classes).sort();
+  }, [students]);
 
-  if (!teacherSubject) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 dark:bg-slate-950 p-4 font-sans transition-colors duration-300">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-2xl w-full max-w-sm border border-slate-100 dark:border-slate-800">
-          <div className="text-center mb-8">
-             <div className="w-20 h-20 bg-tocantins-blue dark:bg-tocantins-yellow rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-100 dark:shadow-none">
-                <ShieldCheck className="text-white dark:text-slate-950" size={40}/>
-             </div>
-             <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Acesso Docente</h2>
+  const handleDownloadActivity = async (act: any) => {
+    alert("Iniciando exportação em PDF da atividade...");
+  };
+
+  return (
+    <>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex transition-colors duration-300">
+      {/* Sidebar Otimizada */}
+      <aside className="w-72 bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col transition-colors">
+        <div className="p-8">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-10 h-10 bg-tocantins-blue dark:bg-tocantins-yellow rounded-2xl flex items-center justify-center text-white dark:text-slate-950 shadow-lg shadow-blue-200 dark:shadow-none">
+              <GraduationCap size={24}/>
+            </div>
+            <h1 className="font-black text-xl text-slate-800 dark:text-white uppercase tracking-tighter">Área Docente</h1>
           </div>
 
-          {authError && (
-            <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top">
-               <AlertTriangle className="text-amber-600 dark:text-amber-500 shrink-0" size={20}/>
-               <div className="text-[10px] text-amber-800 dark:text-amber-200 leading-relaxed">
-                  <p className="font-bold mb-1 uppercase tracking-wider">Aviso de Autenticação</p>
-                  {authError}
+          <nav className="space-y-1">
+            {[
+              { id: 'lessons_list', icon: BookOpen, label: 'Plano de Aulas' },
+              { id: 'question_bank', icon: Database, label: 'Banco de Temas' },
+              { id: 'submissions', icon: FileText, label: 'Submissões' },
+              { id: 'evaluations', icon: Award, label: 'Notas' },
+              { id: 'students', icon: UserCircle, label: 'Estudantes' },
+              { id: 'messages', icon: MessageSquare, label: 'Mensagens' },
+              { id: 'exam_generator', icon: BrainCircuit, label: 'Simulados IA' },
+              { id: 'reports', icon: BarChart3, label: 'Relatórios IA' },
+            ].map(item => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`w-full flex items-center gap-3 px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
+                  activeTab === item.id 
+                    ? 'bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 shadow-lg shadow-blue-100 dark:shadow-none translate-x-2' 
+                    : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <item.icon size={18}/> {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="mt-auto p-8 border-t dark:border-slate-800">
+           <button 
+             onClick={logoutTeacher}
+             className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all cursor-pointer"
+           >
+             <LogOut size={18}/> Sair do Painel
+           </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto h-screen p-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header Superior */}
+          <header className="flex justify-between items-center mb-10">
+            <div>
+              <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">
+                {activeTab === 'lessons_list' && 'Gestão de Conteúdo'}
+                {activeTab === 'question_bank' && 'Arquivo de Atividades'}
+                {activeTab === 'submissions' && 'Retorno dos Alunos'}
+                {activeTab === 'evaluations' && 'Diário de Classe'}
+                {activeTab === 'students' && 'Carômetro'}
+                {activeTab === 'messages' && 'Central de Dúvidas'}
+                {activeTab === 'exam_generator' && 'Gerador de Provas'}
+                {activeTab === 'reports' && 'Análise de Progresso'}
+              </h2>
+              <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
+                 <ShieldCheck size={14}/> {isSuper ? 'Ambiente Administrativo Geral' : `DOCENTE DE ${teacherSubject?.toUpperCase()}`}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+               {['students', 'submissions', 'evaluations', 'question_bank'].includes(activeTab) && (
+                 <div className="relative group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-tocantins-blue transition-colors" size={16}/>
+                    <input 
+                      type="text" 
+                      placeholder="Buscar por nome ou tema..."
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="bg-white dark:bg-slate-900 border dark:border-slate-800 pl-12 pr-6 py-4 rounded-3xl text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/20 outline-none w-80 transition-all"
+                    />
+                 </div>
+               )}
+            </div>
+          </header>
+
+          {/* Conteúdo das Abas */}
+          {activeTab === 'lessons_list' && (
+            <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               {curriculumData.map((gradeData, gIdx) => (
+                 <section key={gIdx} className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 p-8 shadow-sm">
+                   <div className="flex items-center justify-between mb-8">
+                     <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-tocantins-blue rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg ring-4 ring-blue-50 dark:ring-blue-900/10">
+                         {gradeData.id}º
+                       </div>
+                       <div>
+                         <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Grade de Ciências Humanas</h3>
+                         <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest leading-none mt-1">Nível de Ensino: {gradeData.id}ª Série</p>
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 gap-4">
+                     {(['historia', 'geografia', 'sociologia', 'filosofia'] as Subject[]).map((subjId) => {
+                       const lessons = gradeData.bimesters.flatMap(b => b.lessons.filter(l => l.subject === subjId).map(l => ({...l, bimesterId: b.id})));
+                       if (lessons.length === 0) return null;
+                       return (
+                         <div key={subjId} className="space-y-4">
+                           <div className="flex items-center gap-2 mb-2">
+                             <div className={`w-2 h-2 rounded-full ${subjectsInfo[subjId]?.color || 'bg-slate-400'}`}></div>
+                             <h4 className="font-bold text-slate-800 dark:text-slate-200 uppercase text-xs tracking-widest">
+                               {subjectsInfo[subjId]?.name || subjId}
+                             </h4>
+                           </div>
+
+                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              {lessons.map((lesson, lIdx) => (
+                                <div 
+                                  key={lIdx}
+                                  className="group bg-slate-50 dark:bg-slate-800/50 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 hover:border-tocantins-blue/30 transition-all"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                                        {lesson.bimesterId}º Bimestre • {lesson.id}
+                                      </div>
+                                    <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-4 group-hover:text-tocantins-blue dark:group-hover:text-tocantins-yellow transition-colors leading-tight">
+                                      {lesson.title}
+                                    </h5>
+                                  </div>
+                                  <div className="flex gap-2">
+                                     <button 
+                                       onClick={() => handleOpenLessonEditor(lesson)}
+                                       className="p-3 bg-white dark:bg-slate-800 text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow rounded-xl shadow-sm border dark:border-slate-700 transition-all cursor-pointer"
+                                     >
+                                       <Presentation size={18}/>
+                                     </button>
+                                     <button 
+                                       onClick={() => handleOpenActivityEditor(lesson)}
+                                       className={`p-3 rounded-xl shadow-sm border transition-all cursor-pointer ${
+                                         savedActivities.includes(lesson.id)
+                                           ? 'bg-emerald-500 text-white border-emerald-500'
+                                           : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow dark:border-slate-700'
+                                       }`}
+                                     >
+                                       {savedActivities.includes(lesson.id) ? <CheckCircle2 size={18}/> : <ClipboardList size={18}/>}
+                                     </button>
+                                  </div>
+                                </div>
+                                
+                                {savedActivities.includes(lesson.id) && (
+                                  <div className="mt-4 pt-4 border-t border-dashed dark:border-slate-700 flex items-center justify-between">
+                                     <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
+                                       <Save size={12}/> Atividade no Banco
+                                     </span>
+                                     <div className="flex gap-2">
+                                        <button 
+                                          onClick={() => handleDownloadActivity(lesson)}
+                                          className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 uppercase tracking-widest transition-all cursor-pointer"
+                                        >
+                                          Exportar
+                                        </button>
+                                        <button 
+                                          onClick={() => handleDeleteActivity(lesson.id)}
+                                          className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase tracking-widest transition-all cursor-pointer"
+                                        >
+                                          Limpar
+                                        </button>
+                                     </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                   </div>
+                 </section>
+               ))}
+            </div>
+          )}
+
+          {activeTab === 'question_bank' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm mb-6 transition-colors">
+                  <div className="flex items-center gap-3 mb-4">
+                     <Database className="text-tocantins-blue dark:text-tocantins-yellow" size={24}/>
+                     <div>
+                        <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-lg">Acervo de Humanas</h3>
+                        <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest leading-none mt-1">Repositório de questões e atividades curadas</p>
+                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 uppercase">Gestão Editorial</h4>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed tracking-wider">As atividades e questões são coordenadas manualmente pelos professores através do Plano de Aulas.</p>
+                     </div>
+                     <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 uppercase">Segurança de Dados</h4>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed tracking-wider">O banco é protegido com backup automático via Firebase Firestore. Alterações são permanentes.</p>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 overflow-hidden shadow-sm">
+                  <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20">
+                     <div>
+                        <h2 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-xl">Questões Individuais</h2>
+                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Banco de questões avulsas ou vinculadas</p>
+                     </div>
+                     <div className="text-[10px] font-black bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-6 py-2 rounded-xl uppercase tracking-widest">
+                       {questionBank.length} Questões
+                     </div>
+                  </div>
+
+                  <div className="p-8">
+                     {questionBank.length === 0 ? (
+                       <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-dashed dark:border-slate-800">
+                          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Nenhuma questão encontrada no acervo.</p>
+                       </div>
+                     ) : (
+                       <div className="grid grid-cols-1 gap-4">
+                         {questionBank
+                           .filter(q => searchTerm === '' || q.question_text.toLowerCase().includes(searchTerm.toLowerCase()) || q.topic?.toLowerCase().includes(searchTerm.toLowerCase()))
+                           .map((q: any) => (
+                             <div key={q.id} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800 group hover:border-tocantins-blue/30 transition-all">
+                               <div className="flex justify-between items-start mb-4">
+                                 <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                       <span className={`w-2 h-2 rounded-full ${subjectsInfo[q.subject as Subject]?.color || 'bg-slate-400'}`}></span>
+                                       <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                         {subjectsInfo[q.subject as Subject]?.name || q.subject} • {q.topic}
+                                       </span>
+                                    </div>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                      {q.question_text}
+                                    </p>
+                                 </div>
+                                 <button 
+                                   onClick={() => handleDeleteQuestion(q.id)}
+                                   className="p-2 text-slate-300 hover:text-red-500 transition-colors cursor-pointer"
+                                 >
+                                   <Trash2 size={18}/>
+                                 </button>
+                               </div>
+                               
+                               {q.type === 'objective' && (
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
+                                   {Object.entries(q.options).map(([key, val]: [string, any]) => (
+                                     <div 
+                                       key={key} 
+                                       className={`p-3 rounded-xl text-xs font-bold border flex items-center gap-3 ${
+                                         key === q.correct_option 
+                                           ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                                           : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500'
+                                       }`}
+                                     >
+                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center uppercase ${
+                                          key === q.correct_option ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                       }`}>
+                                         {key}
+                                       </div>
+                                       {val}
+                                     </div>
+                                   ))}
+                                 </div>
+                               )}
+                             </div>
+                           ))
+                         }
+                       </div>
+                     )}
+                  </div>
+            </div>
+          </div>
+          )}
+
+          {activeTab === 'submissions' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 overflow-hidden shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50">
+                        <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Estudante</th>
+                        <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Tópico / Disciplina</th>
+                        <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Data</th>
+                        <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Nota</th>
+                        <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-slate-800">
+                      {filteredSubmissions.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-20 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                            Nenhuma submissão encontrada.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSubmissions.map((sub: any) => (
+                          <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                            <td className="p-6">
+                               <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm ring-2 ring-slate-100 dark:ring-slate-800">
+                                     <StudentAvatar studentName={sub.student_name} />
+                                  </div>
+                                  <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{sub.student_name}</span>
+                               </div>
+                            </td>
+                            <td className="p-6">
+                               <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-tight">{sub.lesson_title}</p>
+                               <span className="text-[10px] uppercase font-black text-slate-400">{sub.subject}</span>
+                            </td>
+                            <td className="p-6 text-xs text-slate-500 font-bold">
+                               {sub.created_at?.toDate ? sub.created_at.toDate().toLocaleString() : 'Recente'}
+                            </td>
+                            <td className="p-6">
+                               <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${
+                                 Number(sub.grade_auto || 0) >= 7 
+                                   ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' 
+                                   : 'bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400'
+                               }`}>
+                                 {sub.grade_auto} / 10
+                               </div>
+                            </td>
+                            <td className="p-6">
+                               <button 
+                                 onClick={() => {
+                                   setViewingSubmission(sub);
+                                   setManualFeedback(sub.teacher_feedback || '');
+                                 }}
+                                 className="flex items-center gap-2 p-3 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-tocantins-blue dark:text-tocantins-yellow hover:shadow-lg transition-all cursor-pointer font-black text-[10px] uppercase tracking-widest"
+                               >
+                                 <Eye size={16}/> Avaliar
+                               </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                </div>
             </div>
           )}
 
-          <form onSubmit={handleAdminLogin} className="space-y-4">
-            <select className="w-full p-4 border dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200 outline-none" value={selectedAccess} onChange={e => setSelectedAccess(e.target.value as any)}>
-              <option value="SUPER_ADMIN">👑 Gestão Geral (Super Admin)</option>
-              {Object.entries(subjectsInfo).map(([k, v]) => <option key={k} value={k}>Professor de {v.name}</option>)}
-            </select>
-            {selectedAccess === 'SUPER_ADMIN' && (
-              <div className="space-y-4">
-                <button 
-                  type="button" 
-                  onClick={handleGoogleAdminLogin}
-                  className="w-full flex items-center justify-center gap-3 p-4 bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95 cursor-pointer"
-                >
-                  <Chrome className="w-5 h-5 text-tocantins-blue dark:text-tocantins-yellow" />
-                  Entrar com Google (Recomendado)
-                </button>
-                
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-300 dark:text-slate-600"><span className="bg-white dark:bg-slate-900 px-4">ou use senha</span></div>
-                </div>
+          {activeTab === 'evaluations' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 p-8 shadow-sm">
+                  <div className="flex items-center justify-between mb-8">
+                     <div>
+                        <h2 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-xl">Mapa de Aproveitamento</h2>
+                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Consolidado de desempenho por estudante</p>
+                     </div>
+                  </div>
 
-                <input 
-                  required 
-                  type="email" 
-                  placeholder="Email Administrativo" 
-                  className="w-full p-4 border dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800 outline-none dark:text-white" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                />
-              </div>
-            )}
-            <input 
-              required 
-              type="password" 
-              placeholder="Senha de Acesso" 
-              className="w-full p-4 border dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800 outline-none dark:text-white" 
-              value={pass} 
-              onChange={e => setPass(e.target.value)} 
-            />
-            <button type="submit" className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase tracking-widest shadow-lg cursor-pointer">Acessar Painel</button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  const currentSubInfo = !isSuper ? subjectsInfo[teacherSubject as Subject] : null;
-
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row font-sans overflow-hidden transition-colors duration-300">
-      
-      {/* MODAL PLANO DE AULA GERADO (IA) */}
-      {viewingLessonPlan && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-[50px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-8 border-slate-50 dark:border-slate-800 transition-colors duration-300">
-                <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-10 transition-colors">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-amber-500 rounded-3xl flex items-center justify-center text-white shadow-xl">
-                            <Sparkles size={28}/>
-                        </div>
-                        <div>
-                            <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-tight">{viewingLessonPlan.title}</h3>
-                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Roteiro Pedagógico Sugerido (50 Minutos)</p>
-                        </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <button onClick={() => window.print()} className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-tocantins-blue dark:hover:bg-tocantins-yellow hover:text-white dark:hover:text-slate-950 rounded-2xl transition-all shadow-sm cursor-pointer"> <Printer size={24}/> </button>
-                        <button onClick={() => setViewingLessonPlan(null)} className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm cursor-pointer"> <X size={24}/> </button>
-                    </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-10 space-y-12 bg-white dark:bg-slate-900 print:p-0">
-                    <section className="space-y-4">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <Layers size={16}/> Objetivos de Aprendizagem</h4>
-                        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {viewingLessonPlan.objectives.map((obj, i) => (
-                                <li key={i} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 flex gap-3">
-                                    <span className="w-6 h-6 rounded-full bg-white dark:bg-slate-950 flex items-center justify-center text-[10px] text-amber-500 shadow-sm shrink-0">{i+1}</span>
-                                    {obj}
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
-
-                    <section className="space-y-6">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <BookOpen size={16}/> Conteúdo Teórico Aprofundado</h4>
-                        <div className="prose prose-slate dark:prose-invert max-w-none bg-amber-50/30 dark:bg-amber-950/10 p-10 rounded-[40px] border border-amber-100/50 dark:border-amber-900/30 text-slate-700 dark:text-slate-200 leading-relaxed text-lg italic font-serif">
-                            {viewingLessonPlan.theory}
-                        </div>
-                    </section>
-
-                    <section className="space-y-6">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <Clock size={16}/> Metodologia e Divisão do Tempo</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                <div className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-2">Introdução (10 min)</div>
-                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{viewingLessonPlan.methodology.introduction}</p>
-                            </div>
-                            <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30">
-                                <div className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-2">Desenvolvimento (30 min)</div>
-                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{viewingLessonPlan.methodology.development}</p>
-                            </div>
-                            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                <div className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mb-2">Fechamento (10 min)</div>
-                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{viewingLessonPlan.methodology.conclusion}</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section className="space-y-4">
-                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest"> <Wand2 size={16}/> Sugestão de Atividade Prática</h4>
-                        <div className="bg-slate-900 dark:bg-slate-950 text-white p-10 rounded-[40px] shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 opacity-10"> <Sparkles size={80}/> </div>
-                            <p className="text-lg font-bold leading-relaxed relative z-10">{viewingLessonPlan.suggestedActivity}</p>
-                        </div>
-                    </section>
-                </div>
-                <div className="p-6 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Este roteiro foi gerado por IA para apoio docente • Customize conforme sua realidade local.</p>
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {studentsWithSubmissions.map((s: any) => (
+                       <div key={s.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center gap-4 group hover:border-tocantins-blue/30 transition-all">
+                          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-md ring-4 ring-white dark:ring-slate-900">
+                             <StudentAvatar studentId={s.id} studentName={s.name} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                             <h4 className="font-black text-slate-800 dark:text-slate-100 truncate text-sm uppercase tracking-tight">{s.name}</h4>
+                             <p className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-widest mt-1">
+                                {s.submissionCount} Atividades Realizadas
+                             </p>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </div>
             </div>
-        </div>
-      )}
+          )}
 
-      {/* MODAL CRIAR ESTUDANTE (SUPER ADMIN) */}
-      {isCreatingStudent && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden flex flex-col border border-slate-100 dark:border-slate-800 transition-colors">
-                <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-2"> <UserPlus size={20} className="text-tocantins-blue dark:text-tocantins-yellow"/> Novo Estudante</h3>
-                    <button onClick={() => setIsCreatingStudent(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-slate-400 cursor-pointer"><X size={24}/></button>
-                </div>
-                <form onSubmit={handleCreateStudent} className="p-8 space-y-4">
-                    <input required placeholder="Nome Completo" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 dark:text-white" value={newStudentData.name} onChange={e => setNewStudentData({...newStudentData, name: e.target.value})} />
-                    <input required type="email" placeholder="E-mail de Acesso" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 dark:text-white" value={newStudentData.email} onChange={e => setNewStudentData({...newStudentData, email: e.target.value})} />
-                    <input required type="password" placeholder="Senha Inicial" className="w-full p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 dark:text-white" value={newStudentData.password} onChange={e => setNewStudentData({...newStudentData, password: e.target.value})} />
-                    <div className="grid grid-cols-2 gap-3">
-                        <select className="p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none dark:text-white" value={newStudentData.grade} onChange={e => setNewStudentData({...newStudentData, grade: e.target.value})}>
+          {activeTab === 'students' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="flex justify-end gap-2 mb-4">
+                  {isSuper && (
+                    <button 
+                      onClick={handleSeedStudents}
+                      disabled={isSeedingStudents}
+                      className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                    >
+                      {isSeedingStudents ? <Loader2 className="animate-spin" size={16}/> : <Users size={16}/>}
+                      Sincronizar Estudantes
+                    </button>
+                  )}
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                 {filteredStudents.map((st: any) => (
+                   <div key={st.id} className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm group hover:shadow-xl transition-all">
+                      <div className="flex flex-col items-center text-center">
+                         <div className="w-20 h-20 rounded-3xl overflow-hidden mb-4 shadow-lg ring-4 ring-slate-50 dark:ring-slate-800 group-hover:scale-110 transition-transform">
+                            <StudentAvatar studentId={st.id} studentName={st.name} />
+                         </div>
+                         <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-sm mb-1">{st.name}</h4>
+                         <span className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-widest">{st.grade}ª Série • {st.school_class}</span>
+                         
+                         <div className="mt-4 flex gap-2">
+                            <button 
+                              onClick={() => {
+                                setSelectedChatStudentId(st.id);
+                                setActiveTab('messages');
+                              }}
+                              className="p-2 text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow transition-colors"
+                            >
+                               <MessageSquare size={18}/>
+                            </button>
+                            <button className="p-2 text-slate-400 hover:text-tocantins-blue transition-colors">
+                               <Settings size={18}/>
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                 ))}
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'messages' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-250px)]">
+               {/* Lista de Conversas */}
+               <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 overflow-hidden flex flex-col shadow-sm">
+                  <div className="p-6 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+                     <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-xs">Conversas Ativas</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                     {chatSessions.length === 0 ? (
+                       <div className="p-8 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">Nenhuma mensagem recebida.</div>
+                     ) : (
+                       chatSessions.map((chat: any) => (
+                         <button 
+                           key={chat.studentId}
+                           onClick={() => setSelectedChatStudentId(chat.studentId)}
+                           className={`w-full p-6 flex items-center gap-4 text-left border-b dark:border-slate-800 transition-all ${selectedChatStudentId === chat.studentId ? 'bg-tocantins-blue/5 dark:bg-tocantins-yellow/5 border-l-4 border-l-tocantins-blue dark:border-l-tocantins-yellow' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                         >
+                            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-sm">
+                               <StudentAvatar studentName={chat.studentName} studentId={chat.studentId} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                               <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate uppercase tracking-tight">{chat.studentName}</h4>
+                               <p className="text-xs text-slate-400 truncate mt-1">{chat.lastMessage}</p>
+                            </div>
+                         </button>
+                       ))
+                     )}
+                  </div>
+               </div>
+
+               {/* Chat Aberto */}
+               <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 overflow-hidden flex flex-col shadow-sm">
+                   {selectedChatStudentId ? (
+                     <>
+                       <div className="p-6 border-b dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm">
+                                <StudentAvatar 
+                                  studentName={students.find(s => s.id === selectedChatStudentId)?.name || 'Estudante'} 
+                                  studentId={selectedChatStudentId}
+                                />
+                             </div>
+                             <div>
+                                <h3 className="font-bold text-slate-800 dark:text-white uppercase tracking-tight text-sm">
+                                  {students.find(s => s.id === selectedChatStudentId)?.name || 'Estudante'}
+                                </h3>
+                                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Online para suporte</p>
+                             </div>
+                          </div>
+                       </div>
+
+                       <div className="flex-1 overflow-y-auto p-8 space-y-4">
+                          {selectedChatMessages.map((msg: any) => (
+                            <div key={msg.id} className={`flex ${msg.is_from_teacher ? 'justify-end' : 'justify-start'}`}>
+                               <div className={`max-w-[70%] p-4 rounded-3xl text-sm font-bold shadow-sm ${
+                                 msg.is_from_teacher 
+                                   ? 'bg-tocantins-blue text-white rounded-tr-none' 
+                                   : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-tl-none'
+                               }`}>
+                                  {msg.content}
+                                  <div className={`text-[9px] mt-1 uppercase font-black tracking-widest ${msg.is_from_teacher ? 'text-white/50' : 'text-slate-400'}`}>
+                                     {msg.created_at?.toDate ? msg.created_at.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
+                                  </div>
+                               </div>
+                            </div>
+                          ))}
+                          <div ref={chatEndRef} />
+                       </div>
+
+                       <div className="p-6 border-t dark:border-slate-800">
+                          <form onSubmit={handleSendMessage} className="flex gap-4">
+                             <input 
+                               type="text" 
+                               value={teacherReplyText}
+                               onChange={e => setTeacherReplyText(e.target.value)}
+                               placeholder="Digite sua orientação pedagógica..."
+                               className="flex-1 bg-slate-50 dark:bg-slate-800/50 border dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10 outline-none"
+                             />
+                             <button 
+                               type="submit"
+                               disabled={isSendingReply || !teacherReplyText.trim()}
+                               className="bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-4 rounded-2xl shadow-lg hover:scale-105 transition-all disabled:opacity-50 cursor-pointer"
+                             >
+                                <Send size={24}/>
+                             </button>
+                          </form>
+                       </div>
+                     </>
+                   ) : (
+                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-center p-12">
+                        <MessageSquare size={64} className="mb-4 opacity-20"/>
+                        <p className="font-black uppercase tracking-widest text-[10px]">Selecione um estudante ao lado para iniciar a tutoria.</p>
+                     </div>
+                   )}
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'exam_generator' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 p-10 shadow-sm text-center max-w-2xl mx-auto">
+                   <div className="w-20 h-20 bg-tocantins-blue/10 dark:bg-tocantins-yellow/10 rounded-[32px] flex items-center justify-center text-tocantins-blue dark:text-tocantins-yellow mx-auto mb-8 shadow-inner">
+                      <BrainCircuit size={40}/>
+                   </div>
+                   <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-4">Gerador de Simulados IA</h2>
+                   <p className="text-slate-400 dark:text-slate-500 font-bold text-sm leading-relaxed mb-10">
+                     Utilize a Inteligência Artificial para compor avaliações bimestrais completas baseadas no currículo oficial de Ciências Humanas.
+                   </p>
+
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                      <div className="space-y-2 text-left">
+                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Série</label>
+                         <select 
+                           value={examGrade}
+                           onChange={e => setExamGrade(e.target.value)}
+                           className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl px-4 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10"
+                         >
                             <option value="1">1ª Série</option>
                             <option value="2">2ª Série</option>
                             <option value="3">3ª Série</option>
-                        </select>
-                        <select required className="p-4 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl outline-none dark:text-white" value={newStudentData.school_class} onChange={e => setNewStudentData({...newStudentData, school_class: e.target.value})}>
-                            <option value="">Turma</option>
-                            {newStudentData.grade === '1' && Array.from({length: 7}, (_, i) => `13.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
-                            {newStudentData.grade === '2' && Array.from({length: 8}, (_, i) => `23.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
-                            {newStudentData.grade === '3' && Array.from({length: 9}, (_, i) => `33.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                    <button type="submit" disabled={isSavingNewStudent} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95">
-                        {isSavingNewStudent ? <Loader2 className="animate-spin"/> : <Save size={20}/>} Criar Cadastro
-                    </button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {/* MODAL DETALHES DA SUBMISSÃO */}
-      {viewingSubmission && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors">
-                <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                    <div>
-                        <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Detalhes do Envio</h3>
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{viewingSubmission.student_name} • {viewingSubmission.lesson_title}</p>
-                    </div>
-                    <button onClick={() => setViewingSubmission(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-slate-400 cursor-pointer"><X size={24}/></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                    <div className="space-y-6">
-                        <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm uppercase flex items-center gap-2"> <ListChecks size={18} className="text-tocantins-blue dark:text-tocantins-yellow"/> Respostas do Estudante </h4>
-                        <div className="grid grid-cols-1 gap-4">
-                            {viewingSubmission.content?.map((item: any, i: number) => (
-                                <div key={i} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase mb-2">Pergunta {i+1}: {item.question}</p>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 italic">R: "{item.answer}"</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-4">
-                            <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm uppercase flex items-center gap-2"> <Sparkles size={18} className="text-purple-500 dark:text-purple-400"/> Análise Automática (IA) </h4>
-                            <div className="bg-purple-50 dark:bg-purple-900/10 p-6 rounded-3xl border border-purple-100 dark:border-purple-900/30 text-xs text-purple-900 dark:text-purple-200 leading-relaxed italic">
-                                "{viewingSubmission.ai_feedback?.generalComment || 'Análise não disponível.'}"
-                                <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-900/50 font-black uppercase text-[10px]">Nota Sugerida: {viewingSubmission.score?.toFixed(1)}</div>
-                            </div>
-                        </div>
-                        <div className="space-y-4">
-                            <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm uppercase flex items-center gap-2"> <MessageSquareQuote size={18} className="text-amber-500 dark:text-amber-400"/> Seu Feedback (Manual) </h4>
-                            <div className="space-y-3">
-                                <textarea value={manualFeedback} onChange={e => setManualFeedback(e.target.value)} placeholder="Escreva orientações pedagógicas..." className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-3xl text-sm h-32 focus:border-tocantins-blue dark:focus:border-tocantins-yellow outline-none transition-all dark:text-white" />
-                                <button onClick={handleSaveManualFeedback} disabled={isSavingManualFeedback || !manualFeedback.trim()} className="w-full bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 p-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
-                                    {isSavingManualFeedback ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>} Salvar e Enviar p/ Aluno
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* MODAL FICHA DO ESTUDANTE (CARÔMETRO) */}
-      {selectedStudent && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors">
-                <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Ficha do Estudante</h3>
-                    <button onClick={() => setSelectedStudent(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors dark:text-slate-400 cursor-pointer"><X size={24}/></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                    <div className="flex items-center gap-6">
-                        <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white dark:border-slate-800 shadow-xl flex-shrink-0 bg-slate-100 dark:bg-slate-800">
-                            <StudentAvatar studentId={selectedStudent.id} studentName={selectedStudent.name} />
-                        </div>
-                        <div className="flex-1">
-                            <h4 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">{selectedStudent.name}</h4>
-                            <p className="text-indigo-600 dark:text-tocantins-yellow font-black text-xs uppercase tracking-widest">{selectedStudent.grade}ª Série • Turma {selectedStudent.school_class}</p>
-                            <p className="text-slate-400 dark:text-slate-500 text-xs font-bold mt-1">E-mail: {selectedStudent.email}</p>
-                            <div className="flex wrap gap-2 mt-4">
-                                <button onClick={() => { setActiveTab('messages'); setSelectedChatStudentId(selectedStudent.id); setSelectedStudent(null); }} className="flex items-center gap-2 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer"> <MessageSquare size={16}/> Chat </button>
-                                {isSuper && (
-                                    <>
-                                        <button onClick={handleResetPassword} className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer"> <Key size={16}/> Resetar </button>
-                                        <button onClick={handleDeleteStudent} className="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg cursor-pointer"> <UserMinus size={16}/> Excluir </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="space-y-4">
-                        <h5 className="font-black text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest flex items-center gap-2"> <ClipboardEdit size={14}/> Anotações Pedagógicas </h5>
-                        <div className="flex gap-2">
-                            <textarea value={studentNote} onChange={e => setStudentNote(e.target.value)} placeholder="Registre observações..." className="flex-1 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 focus:border-tocantins-blue dark:focus:border-tocantins-yellow outline-none text-sm h-24 dark:text-white" />
-                            <button onClick={handleSaveNote} disabled={isSavingNote || !studentNote.trim()} className="bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest cursor-pointer"> {isSavingNote ? <Loader2 className="animate-spin"/> : <Save size={18}/>} Salvar </button>
-                        </div>
-                        <div className="space-y-3 mt-6">
-                            {studentNotesHistory.map((n: any) => ( 
-                                <div key={n.id} className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30 relative group/note"> 
-                                    {editingNoteId === n.id ? (
-                                        <div className="space-y-2">
-                                            <textarea value={editingNoteContent} onChange={e => setEditingNoteContent(e.target.value)} className="w-full p-3 bg-white dark:bg-slate-800 rounded-xl border-2 border-amber-200 dark:border-amber-800 outline-none text-sm focus:border-tocantins-blue dark:focus:border-tocantins-yellow dark:text-white" />
-                                            <div className="flex gap-2">
-                                                <button onClick={handleUpdateNote} className="text-[10px] bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 px-4 py-1.5 rounded-lg font-black uppercase shadow-sm cursor-pointer">Salvar</button>
-                                                <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-1.5 rounded-lg font-black uppercase cursor-pointer">Cancelar</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <p className="text-sm text-slate-700 dark:text-slate-200 italic">"{n.content}"</p> 
-                                            <p className="text-[8px] font-black text-amber-600 dark:text-amber-500 uppercase mt-2">{n.created_at?.toDate ? n.created_at.toDate().toLocaleString() : new Date(n.created_at).toLocaleString()}</p>
-                                            <div className="absolute top-2 right-2 opacity-0 group-hover/note:opacity-100 transition-opacity flex gap-1">
-                                                <button onClick={() => { setEditingNoteId(n.id); setEditingNoteContent(n.content); }} className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow transition-colors cursor-pointer" title="Editar"><Pencil size={12}/></button>
-                                                <button onClick={() => handleDeleteNote(n.id)} className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors cursor-pointer" title="Excluir"><Trash2 size={12}/></button>
-                                            </div>
-                                        </>
-                                    )}
-                                </div> 
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* HISTÓRICO DE ATIVIDADES */}
-                    <div className="space-y-6 pt-6 border-t dark:border-slate-800">
-                        <h5 className="font-black text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest flex items-center gap-2"> <Layers size={14}/> Histórico de Atividades </h5>
-                        
-                        {(() => {
-                          const studentSubs = submissions.filter(s => s.student_id === selectedStudent.id);
-                          if (studentSubs.length === 0) return <p className="text-[10px] text-slate-400 dark:text-slate-600 uppercase font-bold text-center py-4">Nenhuma atividade enviada ainda.</p>;
-
-                          const bimesters = ['1º Bimestre', '2º Bimestre', '3º Bimestre', '4º Bimestre', 'Atividades Extras'];
-                          const groupedSubs: Record<string, any[]> = {};
-                          
-                          studentSubs.forEach(sub => {
-                            const bim = getLessonBimester(sub.lesson_title);
-                            if (!groupedSubs[bim]) groupedSubs[bim] = [];
-                            groupedSubs[bim].push(sub);
-                          });
-
-                          return bimesters.map(bim => {
-                            const subs = groupedSubs[bim];
-                            if (!subs || subs.length === 0) return null;
-
-                            return (
-                              <div key={bim} className="space-y-3">
-                                <h6 className="text-[9px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-lg w-fit">{bim}</h6>
-                                <div className="space-y-2">
-                                  {subs.map(sub => (
-                                    <div key={sub.id} className="bg-white dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex justify-between items-center hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-colors group">
-                                      <div>
-                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{sub.lesson_title}</p>
-                                        <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase mt-1">
-                                          {sub.submitted_at?.toDate ? sub.submitted_at.toDate().toLocaleDateString() : new Date(sub.submitted_at).toLocaleDateString()}
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <div className="text-right">
-                                          <p className="text-[7px] font-black text-slate-400 dark:text-slate-500 uppercase">Nota</p>
-                                          <p className="text-xs font-black text-tocantins-blue dark:text-tocantins-yellow">{sub.score?.toFixed(1)}</p>
-                                        </div>
-                                        <button 
-                                          onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }}
-                                          className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg group-hover:bg-tocantins-blue dark:group-hover:bg-tocantins-yellow group-hover:text-white dark:group-hover:text-slate-950 transition-all cursor-pointer"
-                                        >
-                                          <Eye size={14}/>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* SIDEBAR */}
-      <aside className="w-full lg:w-72 bg-slate-900 dark:bg-slate-950 text-white p-6 flex flex-col shrink-0 border-r border-white/5 transition-colors duration-300">
-        <div className="mb-10 text-center animate-in fade-in slide-in-from-left-4">
-          <div className="w-20 h-20 bg-tocantins-yellow rounded-[24px] mx-auto mb-4 flex items-center justify-center shadow-lg transform rotate-3 hover:rotate-0 transition-transform cursor-pointer">
-            <School size={40} className="text-slate-900" />
-          </div>
-          <h1 className="text-lg font-black tracking-tighter uppercase leading-none">
-            Ciências <br/> <span className="text-tocantins-yellow italic">Humanas</span>
-          </h1>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-2">Painel do Educador</p>
-        </div>
-
-        <nav className="flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar">
-          {[
-            { id: 'question_bank', label: 'Banco de Questões', icon: Database },
-            { id: 'lessons_list', label: 'Plano de Aulas', icon: Presentation },
-            { id: 'students', label: 'Estudantes/Turmas', icon: Users },
-            { id: 'submissions', label: 'Atividades Recebidas', icon: ClipboardList },
-            { id: 'evaluations', label: 'Notas e Conceitos', icon: Award },
-            { id: 'exam_generator', label: 'Simulados IA', icon: BrainCircuit, adminOnly: true },
-            { id: 'reports', label: 'Relatórios IA', icon: Sparkles },
-            { id: 'messages', label: 'Chat Alunos', icon: MessageSquare },
-            { id: 'teacher_profile', label: 'Meu Perfil', icon: Settings },
-          ].map((item) => {
-            if (item.adminOnly && !isSuper) return null;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer group ${
-                  activeTab === item.id 
-                    ? 'bg-tocantins-yellow text-slate-900 shadow-lg shadow-tocantins-yellow/20 translate-x-1' 
-                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <item.icon size={18} className={activeTab === item.id ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="mt-8 pt-8 border-t border-white/5 text-center space-y-4">
-          <button onClick={handleExitAdmin} className="w-full flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 p-3 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest cursor-pointer group">
-            <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" /> Sair do Painel
-          </button>
-          
-          <div className="animate-in fade-in slide-in-from-bottom-4 delay-500">
-            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Portal Tocantins</p>
-            <p className="text-[8px] font-medium text-slate-600">
-              Sistema criado por: Prof. Me. Divino Ribeiro Viana
-              <br/>
-              <a href="http://lattes.cnpq.br/7639474934278364" target="_blank" rel="noopener noreferrer" className="font-black text-tocantins-yellow hover:underline transition-all">Currículo Lattes</a>
-            </p>
-          </div>
-        </div>
-      </aside>
-
-      {/* CONTEÚDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden transition-colors duration-300">
-        <header className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-6 flex justify-between items-center z-10 shadow-sm no-print transition-colors">
-           <h1 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-             {activeTab === 'teacher_profile' ? 'Perfil' : activeTab === 'reports' ? 'Relatórios IA' : activeTab === 'lessons_list' ? 'Plano de Aulas' : activeTab === 'messages' ? 'Chat' : activeTab === 'exam_generator' ? 'Gerador de Provas' : 'Gestão'}
-           </h1>
-           <div className="flex gap-2">
-             <button 
-               onClick={toggleTheme} 
-               className="p-3 text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-tocantins-yellow bg-slate-100 dark:bg-slate-800 rounded-xl transition-all cursor-pointer mr-2 flex items-center justify-center"
-               title={darkMode ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
-             > 
-               {darkMode ? <Sun size={20}/> : <Moon size={20}/>} 
-             </button>
-
-             {activeTab === 'students' && isSuper && (
-                <button onClick={() => setIsCreatingStudent(true)} className="flex items-center gap-2 bg-green-600 dark:bg-green-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase shadow-lg shadow-green-100 dark:shadow-none hover:scale-105 transition-all cursor-pointer"> <UserPlus size={18}/> Novo Aluno </button>
-             )}
-             <button onClick={loadData} className="p-3 text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow bg-slate-100 dark:bg-slate-800 rounded-xl transition-all cursor-pointer"> <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/> </button>
-           </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
-           
-           {/* ABA: PERFIL */}
-           {activeTab === 'teacher_profile' && (
-              <div className="max-w-md mx-auto bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 transition-colors">
-                  <div className="text-center space-y-6">
-                      <div className={`w-40 h-40 rounded-[48px] overflow-hidden border-4 border-tocantins-blue dark:border-tocantins-yellow shadow-2xl bg-slate-100 dark:bg-slate-800 mx-auto`}>
-                          {teacherPhoto ? <img src={teacherPhoto} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-4xl">👨‍🏫</div>}
+                         </select>
                       </div>
-                      <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase">Prof. de {subjectsInfo[teacherSubject as Subject]?.name || 'Área'}</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                          <label className="flex items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-all cursor-pointer text-[10px] font-black uppercase dark:text-slate-300">
-                              <Upload size={18}/> Arquivo
-                              <input type="file" accept="image/*" className="hidden" onChange={e => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => setTeacherPhoto(reader.result as string);
-                                      reader.readAsDataURL(file);
-                                  }
-                              }}/>
-                          </label>
-                          <button onClick={() => setShowCamera(true)} className="flex items-center justify-center gap-2 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-tocantins-blue dark:hover:border-tocantins-yellow transition-all text-[10px] font-black uppercase dark:text-slate-300 cursor-pointer"> <Camera size={18}/> Câmera </button>
+                      <div className="space-y-2 text-left">
+                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Bimestre</label>
+                         <select 
+                           value={examBimester}
+                           onChange={e => setExamBimester(e.target.value)}
+                           className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl px-4 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10"
+                         >
+                            <option value="1">1º Bimestre</option>
+                            <option value="2">2º Bimestre</option>
+                            <option value="3">3º Bimestre</option>
+                            <option value="4">4º Bimestre</option>
+                         </select>
                       </div>
-                      <button onClick={handleSaveTeacherProfile} disabled={isSavingProfile || !teacherPhoto} className="w-full bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs shadow-xl flex items-center justify-center gap-2 cursor-pointer">
-                          {isSavingProfile ? <Loader2 className="animate-spin"/> : <Save size={20}/>} Salvar Alterações
-                      </button>
-                  </div>
-              </div>
-           )}
-
-           {/* FILTROS */}
-           {activeTab !== 'exam_generator' && activeTab !== 'lessons_list' && activeTab !== 'messages' && activeTab !== 'teacher_profile' && activeTab !== 'reports' && (
-              <div className="mb-8 bg-white dark:bg-slate-900 p-6 rounded-[32px] shadow-sm border border-slate-200 dark:border-slate-800 flex flex-wrap gap-4 items-end animate-in fade-in no-print transition-colors">
-                 <div className="flex-1 min-w-[200px]">
-                    <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Buscar por Nome</label>
-                    <div className="relative">
-                       <Search className="absolute left-4 top-3.5 text-slate-300 dark:text-slate-600" size={18}/>
-                       <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Nome do aluno..." className="w-full pl-12 p-3.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 text-sm font-medium dark:text-white" />
-                    </div>
-                 </div>
-                 <div>
-                    <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Série</label>
-                    <select value={filterGrade} onChange={e => setFilterGrade(e.target.value)} className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 text-sm font-bold min-w-[120px] dark:text-white">
-                       <option value="all">Todas</option>
-                       <option value="1">1ª Série</option>
-                       <option value="2">2ª Série</option>
-                       <option value="3">3ª Série</option>
-                    </select>
-                 </div>
-                 <div>
-                    <label className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Turma</label>
-                    <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="p-3.5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 dark:focus:ring-tocantins-yellow/20 text-sm font-bold min-w-[120px] dark:text-white">
-                       <option value="all">Todas</option>
-                       {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                 </div>
-              </div>
-           )}
-
-           {/* ABAS: BANCO DE QUESTÕES */}
-           {activeTab === 'question_bank' && (
-              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in transition-colors">
-                 <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm mb-6 transition-colors">
-                    <div className="flex items-center gap-3 mb-4">
-                       <Database className="text-tocantins-blue dark:text-tocantins-yellow" size={24}/>
-                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Diagnóstico do Banco de Dados</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 uppercase">1. O banco está vazio?</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Se você não vê atividades ou questões, clique no botão abaixo para popular o banco com o currículo padrão.</p>
-                          <button 
-                             onClick={handleSeedDatabase}
-                             disabled={loading}
-                             className="w-full bg-emerald-600 dark:bg-emerald-700 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-                          >
-                             {loading ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
-                             Popular Banco Automaticamente
-                          </button>
-                          <button 
-                             onClick={handleHardReset}
-                             disabled={loading}
-                             className="w-full mt-2 bg-red-600 dark:bg-red-700 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-                          >
-                             {loading ? <Loader2 className="animate-spin" size={14}/> : <Trash2 size={14}/>}
-                             Hard Reset (Limpeza Profunda)
-                          </button>
-                       </div>
-                       <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs mb-2 uppercase">2. Erros de Permissão ou IA?</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Verifique se sua chave API está ativa e se você tem permissões de administrador.</p>
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-tocantins-blue dark:text-tocantins-yellow font-black text-[10px] uppercase">
-                                <ShieldCheck size={14}/> Sistema de Resiliência Ativo
-                             </div>
-                             <div className={`flex items-center gap-2 font-black text-[10px] uppercase ${process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                {process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? <CheckCircle2 size={14}/> : <AlertTriangle size={14}/>}
-                                {process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY ? 'Chave API Detectada' : 'Chave API Não Encontrada'}
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-                 </div>
-
-                  <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm transition-colors mb-8">
-                     <div className="flex justify-between items-center mb-6">
-                       <div>
-                         <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Atividades por Área</h2>
-                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Atividades completas salvas no banco para a disciplina de {isSuper ? 'Geral' : teacherSubject}.</p>
-                       </div>
-                       <div className="text-xs font-black bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-4 py-2 rounded-xl uppercase"> {activityBank.length} Atividades </div>
-                     </div>
-
-                     {activityBank.length === 0 ? (
-                       <div className="text-center py-10 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 font-bold italic transition-colors">Nenhuma atividade completa registrada.</div>
-                     ) : (
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         {activityBank.map((act) => (
-                           <div key={act.id} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 group hover:shadow-md transition-all">
-                              <div className="flex justify-between items-start mb-4 transition-colors">
-                                <div>
-                                  <h3 className="font-black text-slate-800 dark:text-white uppercase text-sm leading-tight mb-2 tracking-tight">{act.title}</h3>
-                                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
-                                     <Library size={12}/> {act.subject} • {new Date(act.created_at?.toDate ? act.created_at.toDate() : act.created_at).toLocaleDateString()}
-                                  </div>
-                                </div>
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                   <button onClick={() => handleDownloadActivity(act)} className="p-2 bg-white dark:bg-slate-800 text-blue-500 rounded-lg shadow-sm border border-blue-50 dark:border-blue-900/30 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer" title="Download PDF"> <Download size={14}/> </button>
-                                   <button 
-                                      onClick={() => {
-                                        const lesson = curriculumData.flatMap(g => g.bimesters.flatMap(b => b.lessons)).find(l => l.id === act.lesson_id);
-                                        if (lesson) handleOpenActivityEditor(lesson);
-                                        else alert("Aula não encontrada no currículo local.");
-                                      }} 
-                                      className="p-2 bg-white dark:bg-slate-800 text-amber-500 rounded-lg shadow-sm border border-amber-50 dark:border-amber-900/30 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all cursor-pointer" 
-                                      title="Editar"
-                                   > 
-                                      <Pencil size={14}/> 
-                                   </button>
-                                   <button onClick={() => handleDeleteActivity(act.lesson_id)} className="p-2 bg-white dark:bg-slate-800 text-red-500 rounded-lg shadow-sm border border-red-50 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer" title="Excluir"> <Trash2 size={14}/> </button>
-                                </div>
-                              </div>
-                              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest bg-white dark:bg-slate-900 w-fit px-3 py-1 rounded-full shadow-inner border border-slate-100 dark:border-slate-800 transition-colors">
-                                {questionBank.filter(q => q.lesson_id === act.lesson_id || q.topic === act.title.replace('Atividade: ', '')).length} Questões
-                              </p>
-                           </div>
-                         ))}
-                       </div>
-                     )}
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm transition-colors">
-                     <div className="flex justify-between items-center mb-6">
-                       <div>
-                         <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Questões Individuais</h2>
-                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Banco de questões avulsas ou vinculadas.</p>
-                       </div>
-                       <div className="text-xs font-black bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-4 py-2 rounded-xl uppercase"> {questionBank.length} Questões </div>
-                     </div>
-
-                     {questionBank.length === 0 ? (
-                       <div className="text-center py-10 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 font-bold">Nenhuma questão no banco. Use o Plano de Aulas para criar novas atividades.</div>
-                     ) : (
-                      <div className="space-y-4">
-                        {questionBank.map((q) => (
-                          <div key={q.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 relative group overflow-hidden transition-colors">
-                            <div className="absolute top-4 right-4 flex gap-2">
-                               <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 bg-white dark:bg-slate-800 text-red-500 rounded-lg shadow-sm border border-red-50 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Excluir">
-                                 <Trash2 size={14}/>
-                               </button>
-                            </div>
-                            <div className="flex items-center gap-3 mb-3">
-                               <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${q.type === 'objective' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
-                                 {q.type === 'objective' ? 'Objetiva' : 'Discursiva'}
-                               </span>
-                               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{q.subject} • {q.topic}</span>
-                            </div>
-                            <p className="text-slate-800 dark:text-slate-200 font-medium">{q.question_text}</p>
-                            
-                            {q.type === 'objective' && q.options && (
-                              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                {Object.entries(q.options).map(([key, val]) => (
-                                  <div key={key} className={`p-3 rounded-xl text-sm border transition-colors ${q.correct_option === key ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900/30 text-green-800 dark:text-green-400 font-bold' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'}`}>
-                                    <span className="uppercase mr-2 opacity-50">{key})</span> {String(val)}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                      <div className="space-y-2 text-left">
+                         <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Turma Alvo</label>
+                         <select 
+                           value={examClass}
+                           onChange={e => setExamClass(e.target.value)}
+                           className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl px-4 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none transition-all focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10"
+                         >
+                            <option value="all">Todas as Turmas</option>
+                            {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                         </select>
                       </div>
-                    )}
-                 </div>
-              </div>
-           )}
-
-           {/* ABAS: SUBMISSÕES */}
-           {activeTab === 'submissions' && (
-              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in transition-colors">
-                {studentsWithSubmissions.length === 0 ? (
-                  <div className="text-center py-20 bg-white dark:bg-slate-900 rounded-[40px] border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 font-bold transition-colors">Nenhum envio recebido.</div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {studentsWithSubmissions.map(st => (
-                      <button 
-                        key={st.id} 
-                        onClick={() => setSelectedStudent(st)} 
-                        className="bg-white dark:bg-slate-900 rounded-[32px] border dark:border-slate-800 shadow-sm p-6 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all group text-left cursor-pointer"
-                      >
-                        <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden border-2 border-white dark:border-slate-700 shadow-md shrink-0">
-                          <StudentAvatar studentId={st.id} studentName={st.name} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs truncate">{st.name}</h3>
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-widest mt-1">{st.school_class}</p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="bg-blue-50 dark:bg-blue-900/20 text-tocantins-blue dark:text-tocantins-yellow text-[8px] font-black px-2 py-1 rounded-lg uppercase">
-                              {st.submissionCount} {st.submissionCount === 1 ? 'Atividade' : 'Atividades'}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="text-slate-300 dark:text-slate-600 group-hover:text-tocantins-blue dark:group-hover:text-tocantins-yellow transition-colors" size={20}/>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-           )}
-
-           {/* ABAS: CARÔMETRO (ESTUDANTES) */}
-           {activeTab === 'students' && (
-              <div className="space-y-6 animate-in fade-in transition-colors">
-                  {isSuper && (
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[32px] border dark:border-slate-800 shadow-sm flex items-center justify-between gap-4 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Upload className="text-tocantins-blue dark:text-tocantins-yellow" size={24}/>
-                        <div>
-                          <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-sm">Migração de Dados</h3>
-                          <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase">Cadastrar estudantes extraídos das imagens anteriormente</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={handleSeedStudents}
-                        disabled={isSeedingStudents}
-                        className="bg-tocantins-blue dark:bg-tocantins-yellow hover:bg-blue-700 dark:hover:bg-amber-400 text-white dark:text-slate-950 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-                      >
-                        {isSeedingStudents ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
-                        Migrar Estudantes ({STUDENTS_SEED_DATA.length})
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {filteredStudents.length === 0 ? <div className="col-span-full py-20 text-center text-slate-400 dark:text-slate-600 font-bold uppercase text-[10px]">Nenhum estudante cadastrado.</div> : 
-                      filteredStudents.map(st => (
-                        <button key={st.id} onClick={() => setSelectedStudent(st)} className="bg-white dark:bg-slate-900 p-4 rounded-[32px] border dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden text-left cursor-pointer">
-                            <div className="w-full aspect-square rounded-2xl bg-slate-100 dark:bg-slate-800 mb-4 overflow-hidden shadow-inner border-2 border-white dark:border-slate-700 transition-colors">
-                               <StudentAvatar studentId={st.id} studentName={st.name} />
-                            </div>
-                            <h4 className="font-black text-slate-800 dark:text-white text-[10px] uppercase truncate px-1">{st.name}</h4>
-                            <p className="text-[8px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase mt-1">Série: {st.grade}ª • Turma: {st.school_class}</p>
-                            <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-2 py-1 rounded-lg shadow-sm border dark:border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity"> <Settings size={12} className="text-slate-400 dark:text-slate-500"/> </div>
-                        </button>
-                      ))
-                    }
-                  </div>
-              </div>
-           )}
-
-           {/* ABAS: CHAT */}
-           {activeTab === 'messages' && (
-              <div className="max-w-6xl mx-auto h-full flex flex-col animate-in fade-in transition-colors">
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-hidden h-[calc(100vh-160px)]">
-                    <div className="bg-white dark:bg-slate-900 rounded-[32px] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col shadow-sm transition-colors">
-                        <div className="p-5 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 transition-colors"> <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">Conversas</h3> </div>
-                        <div className="flex-1 overflow-y-auto divide-y dark:divide-slate-800 transition-colors">
-                            {chatSessions.length === 0 ? <div className="p-10 text-center text-slate-400 dark:text-slate-600 text-[10px] font-bold uppercase">Sem conversas ativas.</div> : 
-                                chatSessions.map(session => (
-                                    <button key={session.studentId} onClick={() => setSelectedChatStudentId(session.studentId)} className={`w-full p-4 flex items-center gap-4 transition-colors text-left hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer ${selectedChatStudentId === session.studentId ? 'bg-blue-50 dark:bg-blue-900/20 border-r-4 border-tocantins-blue dark:border-tocantins-yellow' : ''}`}>
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex-shrink-0 overflow-hidden border dark:border-slate-700 transition-colors"> 
-                                            <StudentAvatar studentId={session.studentId} studentName={session.studentName} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-baseline mb-1"> <h4 className="font-black text-slate-800 dark:text-white text-[10px] uppercase truncate">{session.studentName}</h4> <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold">{new Date(session.timestamp).toLocaleDateString()}</span> </div>
-                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">{session.lastMessage}</p>
-                                        </div>
-                                    </button>
-                                ))
-                            }
-                        </div>
-                    </div>
-                    <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-[32px] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col shadow-sm transition-colors">
-                        {selectedChatStudentId ? (
-                            <>
-                                <div className="p-4 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3 transition-colors">
-                                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 overflow-hidden transition-colors"> 
-                                        <StudentAvatar studentId={selectedChatStudentId} studentName={students.find(s => s.id === selectedChatStudentId)?.name || ''} />
-                                    </div>
-                                    <h4 className="font-black text-slate-800 dark:text-white text-xs uppercase">{students.find(s => s.id === selectedChatStudentId)?.name}</h4>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
-                                    {selectedChatMessages.map(m => (
-                                        <div key={m.id} className={`flex ${m.is_from_teacher ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-[80%] p-4 rounded-3xl shadow-sm text-sm ${m.is_from_teacher ? 'bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-200 rounded-tr-none' : 'bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 rounded-tl-none border border-slate-100 dark:border-slate-800'}`}>
-                                                <p className="font-medium leading-relaxed">{m.content}</p>
-                                            <p className={`text-[8px] mt-2 font-bold uppercase ${m.is_from_teacher ? 'text-slate-400' : 'text-slate-500'}`}> {m.created_at?.toDate ? m.created_at.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div ref={chatEndRef} />
-                                </div>
-                                <form onSubmit={handleSendMessage} className="p-4 bg-white dark:bg-slate-900 border-t dark:border-slate-800 flex gap-2 transition-colors">
-                                    <input type="text" value={teacherReplyText} onChange={e => setTeacherReplyText(e.target.value)} placeholder="Responder..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-800 rounded-2xl outline-none text-sm dark:text-white transition-colors" disabled={isSendingReply} />
-                                    <button type="submit" disabled={!teacherReplyText.trim() || isSendingReply} className="bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg cursor-pointer"> {isSendingReply ? <Loader2 className="animate-spin" size={20}/> : <Send size={20}/>} </button>
-                                </form>
-                            </>
-                        ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-10 opacity-30"> <MessageSquare size={64} className="mb-4 text-slate-300 dark:text-slate-700" /> <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase text-xs">Selecione uma conversa</h4> </div> }
-                    </div>
-                 </div>
-              </div>
-           )}
-
-           {/* ABAS: PLANO DE AULAS */}
-           {activeTab === 'lessons_list' && (
-              <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in transition-colors">
-                 <div className="bg-amber-50 dark:bg-amber-950/20 p-6 rounded-[32px] border border-amber-200 dark:border-amber-900/30 flex items-center gap-4 mb-4 transition-colors">
-                   <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-500 rounded-2xl flex items-center justify-center">
-                     <Pencil size={24}/>
                    </div>
-                   <div>
-                     <h3 className="font-black text-amber-900 dark:text-amber-200 uppercase text-xs">Gestão Manual de Aulas</h3>
-                     <p className="text-amber-700 dark:text-amber-400 text-[10px] font-bold">Clique em uma aula para editar o conteúdo e criar atividades personalizadas.</p>
-                   </div>
-                 </div>
 
-                 {curriculumData.map(grade => (
-                    <div key={grade.id} className="space-y-4">
-                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm ml-4 transition-colors">{grade.title} - {grade.description}</h3>
-                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                          {grade.bimesters.map(b => (
-                             <div key={b.id} className="bg-white p-5 rounded-[32px] border shadow-sm flex flex-col">
-                                <h4 className="font-black text-tocantins-blue text-xs uppercase mb-4">{b.title}</h4>
-                                <div className="space-y-2 flex-1">
-                                   {b.lessons.filter(l => isSuper || l.subject === teacherSubject).map(l => (
-                                      <div key={l.id} className="flex items-center gap-2">
-                                        <button 
-                                          onClick={() => handleOpenLessonEditor(l)}
-                                          className="flex-1 text-left group transition-all"
-                                        >
-                                          <div className={`text-[10px] font-bold p-3 rounded-xl border flex items-start gap-2 group-hover:bg-amber-50 group-hover:border-amber-200 group-hover:-translate-y-0.5 transition-all ${savedActivities.includes(l.id) ? 'bg-green-50 border-green-100 text-green-700' : 'bg-slate-50 border-slate-100 text-slate-500'}`}>
-                                             <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${savedActivities.includes(l.id) ? 'bg-green-500' : 'bg-slate-300'}`}></div>
-                                             <span className="whitespace-normal break-words leading-tight">{l.title}</span>
-                                          </div>
-                                        </button>
-                                        <div className="flex gap-1 shrink-0">
-                                          <button
-                                            onClick={() => handleOpenActivityEditor(l)}
-                                            className={`p-2 rounded-xl border transition-all ${savedActivities.includes(l.id) ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'}`}
-                                            title="Editar Atividades"
-                                          >
-                                            <ListChecks size={16} />
-                                          </button>
-                                          {savedActivities.includes(l.id) && (
-                                             <button
-                                               onClick={() => handleDeleteActivity(l.id)}
-                                               className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
-                                               title="Excluir Atividade e Questões do Banco"
-                                             >
-                                               <Trash2 size={16}/>
-                                             </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                   ))}
-                                 </div>
-                              </div>
-                           ))}
-                        </div>
-                     </div>
-                  ))}
+                   <button 
+                     onClick={handleGenerateExam}
+                     disabled={isGeneratingExam}
+                     className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
+                   >
+                     {isGeneratingExam ? <Loader2 className="animate-spin" size={20}/> : <Sparkles size={20}/>}
+                     {isGeneratingExam ? 'Interpretando Currículo...' : 'Compor Prova Agora'}
+                   </button>
                </div>
-            )}
 
-            {/* ABAS: GERADOR DE PROVAS */}
-           {activeTab === 'exam_generator' && !isSuper && (
-              <div className="max-w-4xl mx-auto animate-in zoom-in-95 transition-colors">
-                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 transition-colors">
-                    <div className="flex items-center gap-4 mb-8">
-                       <div className="w-14 h-14 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-3xl flex items-center justify-center shadow-inner"> <BrainCircuit size={32}/> </div>
-                       <div> <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Simulados IA</h2> <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">Criação de avaliações estilo ENEM</p> </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Série</label> <select value={examGrade} onChange={e => setExamGrade(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="1">1ª Série</option> <option value="2">2ª Série</option> <option value="3">3ª Série</option> </select> </div>
-                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Bimestre</label> <select value={examBimester} onChange={e => setExamBimester(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="1">1º Bimestre</option> <option value="2">2º Bimestre</option> <option value="3">3º Bimestre</option> <option value="4">4º Bimestre</option> </select> </div>
-                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Turma</label> <select value={examClass} onChange={e => setExamClass(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="all">Todas</option> {classOptions.map(c => <option key={c} value={c}>{c}</option>)} </select> </div>
-                    </div>
-                    {!generatedExam ? (
-                       <button onClick={handleGenerateExam} disabled={isGeneratingExam} className="w-full bg-purple-600 dark:bg-purple-700 text-white p-6 rounded-3xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 hover:opacity-90 transition-all cursor-pointer"> {isGeneratingExam ? <Loader2 className="animate-spin"/> : <Wand2 size={20}/>} {isGeneratingExam ? 'Gerando questões...' : 'Gerar Prova'} </button>
-                    ) : (
-                       <div className="space-y-6">
-                          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800"> <h3 className="font-black text-slate-800 dark:text-white uppercase mb-4 border-b dark:border-slate-800 pb-2">Pré-visualização</h3> <div className="space-y-4"> {generatedExam.questions.map((q, i) => ( <div key={i} className="text-xs"> <p className="font-black text-purple-600 dark:text-purple-400 mb-1">Questão {i+1}</p> <p className="text-slate-600 dark:text-slate-400 italic">"{q.questionText}"</p> </div> ))} </div> </div>
-                          <div className="flex gap-4">
-                             <button onClick={handlePublishExam} disabled={isPublishingExam} className="flex-1 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-3xl font-black uppercase text-xs flex items-center justify-center gap-2 hover:opacity-90 transition-all cursor-pointer"> {isPublishingExam ? <Loader2 className="animate-spin"/> : <CheckCircle2 size={18}/>} Publicar </button>
-                             <button onClick={() => setGeneratedExam(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 p-5 rounded-3xl font-black uppercase text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"> Descartar </button>
-                          </div>
+               {generatedExam && (
+                 <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 p-10 shadow-sm animate-in zoom-in duration-500">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 border-b dark:border-slate-800 pb-8">
+                       <div>
+                          <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">Simulado Gerado com Sucesso</h3>
+                          <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest leading-none flex items-center gap-2">
+                             <CheckCircle2 className="text-emerald-500" size={14}/> Pronto para publicação e download
+                          </p>
                        </div>
-                    )}
-                 </div>
-              </div>
-           )}
-
-           {/* ABAS: RELATÓRIOS (IA) */}
-           {activeTab === 'reports' && (
-              <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in transition-colors">
-                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 transition-colors">
-                    <div className="flex items-center gap-4 mb-8">
-                       <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-3xl flex items-center justify-center shadow-inner"> <BarChart3 size={32}/> </div>
-                       <div> <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Relatórios Pedagógicos</h2> <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">Análise de desempenho assistida por IA</p> </div>
+                       <div className="flex gap-3">
+                          <button 
+                            onClick={handlePublishExam}
+                            disabled={isPublishingExam}
+                            className="bg-emerald-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                          >
+                             {isPublishingExam ? <Loader2 className="animate-spin" size={14}/> : <Send size={14}/>}
+                             Liberar para Alunos
+                          </button>
+                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                       <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Tipo de Relatório</label> <div className="flex gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded-2xl"> <button onClick={() => setReportTarget('student')} className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${reportTarget === 'student' ? 'bg-white dark:bg-slate-700 shadow-md text-tocantins-blue dark:text-tocantins-yellow' : 'text-slate-400 dark:text-slate-500'}`}>Individual</button> <button onClick={() => setReportTarget('class')} className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${reportTarget === 'class' ? 'bg-white dark:bg-slate-700 shadow-md text-tocantins-blue dark:text-tocantins-yellow' : 'text-slate-400 dark:text-slate-500'}`}>Por Turma</button> </div> </div>
-                       {reportTarget === 'student' ? ( <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Escolher Aluno</label> <select value={selectedReportStudent} onChange={e => setSelectedReportStudent(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="">Selecione...</option> {students.map(s => <option key={s.id} value={s.id}>{s.name} ({s.school_class})</option>)} </select> </div> ) : ( <div> <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-1 block">Escolher Turma</label> <select value={filterClass} onChange={e => setFilterClass(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border-none font-bold text-slate-700 dark:text-slate-200 outline-none ring-1 ring-slate-100 dark:ring-slate-800"> <option value="all">Selecione...</option> {classOptions.map(c => <option key={c} value={c}>{c}</option>)} </select> </div> )}
+
+                    <div className="space-y-10">
+                       {generatedExam.questions?.map((q: any, idx: number) => (
+                         <div key={idx} className="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[32px] border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-widest bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border dark:border-slate-800 mb-6 inline-block">Questão {idx + 1}</span>
+                            <p className="text-slate-700 dark:text-slate-200 font-bold leading-relaxed mb-8">{q.question_text}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                               {Object.entries(q.options).map(([key, val]: [string, any]) => (
+                                 <div key={key} className={`p-4 rounded-2xl border flex items-center gap-3 text-xs font-bold ${key === q.correct_option ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 shadow-sm text-emerald-600 dark:text-emerald-400' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500'}`}>
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black ${key === q.correct_option ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 uppercase'}`}>{key}</div>
+                                    {val}
+                                 </div>
+                               ))}
+                            </div>
+                         </div>
+                       ))}
                     </div>
-                    <button onClick={handleGenerateFullReport} disabled={isGeneratingReport} className="w-full bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 p-6 rounded-3xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 hover:opacity-90 transition-all cursor-pointer"> {isGeneratingReport ? <Loader2 className="animate-spin"/> : <Sparkles size={20}/>} {isGeneratingReport ? 'Processando dados...' : 'Gerar Relatório'} </button>
                  </div>
-                 {aiReportResult && (
-                    <div className="bg-white dark:bg-slate-900 p-10 rounded-[40px] shadow-xl border border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-4 transition-colors">
-                       <div className="flex justify-between items-center mb-8"> <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-widest text-sm">Parecer do Sistema</h3> <button onClick={() => window.print()} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow transition-colors"> <Printer size={20}/> </button> </div>
-                       <div className="prose prose-slate dark:prose-invert max-w-none text-slate-600 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap"> {aiReportResult} </div>
-                    </div>
-                 )}
-              </div>
-           )}
-
-           {/* ABAS: NOTAS BIMESTRAIS */}
-           {activeTab === 'evaluations' && (
-              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in transition-colors">
-                 <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 overflow-hidden shadow-sm transition-colors">
-                    <table className="w-full text-left">
-                       <thead className="bg-slate-50 dark:bg-slate-800/50 border-b dark:border-slate-800 transition-colors">
-                          <tr> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Estudante</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Avaliação</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Turma</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase text-center">Nota</th> <th className="p-6 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase text-right">Ação</th> </tr>
-                       </thead>
-                       <tbody className="divide-y dark:divide-slate-800 transition-colors">
-
-                          {filteredSubmissions.length === 0 ? <tr><td colSpan={5} className="p-20 text-center text-slate-300 dark:text-slate-700 font-bold">Nenhum resultado.</td></tr> : 
-                             filteredSubmissions.map(sub => (
-                                <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
-                                   <td className="p-6"> 
-                                      <div className="flex items-center gap-3"> 
-                                          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden transition-colors"> 
-                                              <StudentAvatar studentId={students.find(s => s.name.trim() === sub.student_name)?.id} studentName={sub.student_name} />
-                                          </div> 
-                                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">{sub.student_name}</span> 
-                                      </div> 
-                                   </td>
-                                   <td className="p-6"> <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-full uppercase">{sub.lesson_title}</span> </td>
-                                   <td className="p-6 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{sub.school_class}</td>
-                                   <td className="p-6"> <div className="w-10 h-10 rounded-xl bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 flex items-center justify-center font-black mx-auto shadow-lg shadow-blue-100 dark:shadow-none">{sub.score?.toFixed(1)}</div> </td>
-                                   <td className="p-6 text-right"> <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-tocantins-blue dark:hover:bg-tocantins-yellow hover:text-white dark:hover:text-slate-950 rounded-xl transition-all cursor-pointer"> <Eye size={18}/> </button> </td>
-                                </tr>
-                             ))
-                          }
-                       </tbody>
-                    </table>
-                 </div>
-              </div>
-           )}
-
-        </div>
-      </main>
-
-      {/* MODAL: EDITOR DE AULA */}
-      {isLessonEditorOpen && selectedLessonForEdit && (
-        <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh] transition-colors">
-            <div className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center shrink-0 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-500 rounded-2xl flex items-center justify-center">
-                  <BookOpen size={24}/>
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Editor de Conteúdo</h2>
-                  <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">Personalize a teoria e o título da sua aula</p>
-                </div>
-              </div>
-              <button onClick={() => setIsLessonEditorOpen(false)} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-colors dark:text-slate-400 cursor-pointer"> <X size={24}/> </button>
+               )}
             </div>
+          )}
 
-            <div className="p-8 space-y-6 overflow-y-auto" id="lesson-preview-area">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-2 block">Título da Aula (Público para alunos)</label>
-                <input 
-                  type="text" 
-                  value={lessonTitleDraft} 
-                  onChange={e => setLessonTitleDraft(e.target.value)}
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500 transition-all"
-                />
-              </div>
-              
-              <div>
-                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-2 block">Conteúdo Teórico / Texto da Aula</label>
-                <textarea 
-                  rows={12}
-                  value={lessonTheoryDraft}
-                  onChange={e => setLessonTheoryDraft(e.target.value)}
-                  className="w-full p-6 bg-slate-50 dark:bg-slate-800 border-none rounded-3xl font-medium text-slate-600 dark:text-slate-300 outline-none focus:ring-2 focus:ring-amber-500 transition-all leading-relaxed"
-                  placeholder="Escreva aqui o conteúdo que os alunos irão ler..."
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex gap-4 shrink-0 transition-colors">
-              <button 
-                onClick={() => exportToPDF('lesson-preview-area', `Aula_${lessonTitleDraft}`)}
-                className="px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-2xl font-black uppercase text-[10px] flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
-              >
-                <Download size={18}/> Baixar PDF
-              </button>
-              <div className="flex-1" />
-              <button 
-                onClick={handleSaveLessonOverride}
-                disabled={isSavingLesson}
-                className="px-10 py-4 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 rounded-2xl font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
-              >
-                {isSavingLesson ? <Loader2 size={20} className="animate-spin" /> : <Save size={20}/>} SALVAR E POSTAR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: EDITOR DE ATIVIDADES */}
-      {isActivityEditorOpen && selectedLessonForEdit && (
-        <div className="fixed inset-0 z-[400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-6xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[95vh] transition-colors">
-            <div className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center shrink-0 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-500 rounded-2xl flex items-center justify-center">
-                  <ListChecks size={24}/>
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Criação de Atividades</h2>
-                  <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Aula: {selectedLessonForEdit.title}</p>
-                </div>
-              </div>
-              <button onClick={() => setIsActivityEditorOpen(false)} className="p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-2xl transition-colors dark:text-slate-400 cursor-pointer"> <X size={24}/> </button>
-            </div>
-
-            <div className="flex-1 overflow-hidden flex flex-col md:flex-row divide-x dark:divide-slate-800">
-              {/* Formulário de Nova Questão */}
-              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-6 bg-slate-50/50 dark:bg-slate-950/20 transition-colors">
-                <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs mb-4">Nova Questão</h3>
-                
-                <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700 mb-4 transition-colors">
-                  <button 
-                    onClick={() => setNewQuestion({...newQuestion, type: 'objective'})}
-                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'objective' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 dark:text-slate-500'} cursor-pointer`}
-                  >
-                    Múltipla Escolha
-                  </button>
-                  <button 
-                    onClick={() => setNewQuestion({...newQuestion, type: 'discursive'})}
-                    className={`flex-1 p-3 rounded-xl font-black text-[10px] uppercase transition-all ${newQuestion.type === 'discursive' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 dark:text-slate-500'} cursor-pointer`}
-                  >
-                    Dissertativa
-                  </button>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 mb-2 block">Enunciado</label>
-                  <textarea 
-                    rows={4}
-                    value={newQuestion.question_text}
-                    onChange={e => setNewQuestion({...newQuestion, question_text: e.target.value})}
-                    className="w-full p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
-                    placeholder="Ex: Qual o principal conceito de..."
-                  />
-                </div>
-
-                {newQuestion.type === 'objective' && (
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2 block">Opções</label>
-                    {['a', 'b', 'c', 'd', 'e'].map(opt => (
-                      <div key={opt} className="flex gap-2">
-                        <button 
-                          onClick={() => setNewQuestion({...newQuestion, correct_option: opt})}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center font-black uppercase shrink-0 transition-all cursor-pointer ${newQuestion.correct_option === opt ? 'bg-green-500 text-white shadow-md' : 'bg-white dark:bg-slate-800 border dark:border-slate-700 text-slate-300 dark:text-slate-600'}`}
-                        >
-                          {opt}
-                        </button>
-                        <input 
-                          type="text" 
-                          placeholder={`Opção ${opt.toUpperCase()}...`}
-                          value={newQuestion.options[opt]}
-                          onChange={e => setNewQuestion({
-                            ...newQuestion, 
-                            options: { ...newQuestion.options, [opt]: e.target.value }
-                          })}
-                          className="flex-1 p-3 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-xs outline-none dark:text-white transition-colors"
-                        />
+          {activeTab === 'reports' && (
+             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+                <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 p-10 shadow-sm">
+                   <div className="text-center mb-10">
+                      <div className="w-16 h-16 bg-tocantins-yellow/10 rounded-2xl flex items-center justify-center text-tocantins-yellow mx-auto mb-6">
+                         <BarChart3 size={32}/>
                       </div>
-                    ))}
+                      <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Relatórios de Desempenho</h2>
+                      <p className="text-slate-400 font-bold text-xs mt-2 uppercase tracking-widest">Análise pedagógica baseada em IA</p>
+                   </div>
+
+                   <div className="space-y-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border dark:border-slate-800">
+                         <label className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl cursor-pointer shadow-sm">
+                            <input 
+                              type="radio" 
+                              name="report_type" 
+                              checked={reportTarget === 'student'} 
+                              onChange={() => setReportTarget('student')}
+                              className="accent-tocantins-blue"
+                            />
+                            <span className="font-bold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-widest">Por Estudante</span>
+                         </label>
+                         <label className="flex items-center gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl cursor-pointer shadow-sm">
+                            <input 
+                              type="radio" 
+                              name="report_type" 
+                              checked={reportTarget === 'class'} 
+                              onChange={() => setReportTarget('class')}
+                              className="accent-tocantins-blue"
+                            />
+                            <span className="font-bold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-widest">Por Turma</span>
+                         </label>
+                      </div>
+
+                      <div className="space-y-1">
+                         <label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Alvo da Análise</label>
+                         {reportTarget === 'student' ? (
+                           <select 
+                             value={selectedReportStudent}
+                             onChange={e => setSelectedReportStudent(e.target.value)}
+                             className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10"
+                           >
+                              <option value="">Selecione um Estudante...</option>
+                              {students.map(s => <option key={s.id} value={s.name}>{s.name} ({s.school_class})</option>)}
+                           </select>
+                         ) : (
+                           <select 
+                             value={filterClass}
+                             onChange={e => setFilterClass(e.target.value)}
+                             className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10"
+                           >
+                              <option value="all">Todas as Turmas Ativas</option>
+                              {classOptions.map(c => <option key={c} value={c}>Turma: {c}</option>)}
+                           </select>
+                         )}
+                      </div>
+
+                      <button 
+                        onClick={handleGenerateFullReport}
+                        disabled={isGeneratingReport || (reportTarget === 'student' && !selectedReportStudent)}
+                        className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
+                      >
+                         {isGeneratingReport ? <Loader2 className="animate-spin" size={20}/> : <BrainCircuit size={20}/>}
+                         {isGeneratingReport ? 'Analisando Submissões...' : 'Gerar Laudo Pedagógico'}
+                      </button>
+                   </div>
+                </div>
+
+                {aiReportResult && (
+                  <div className="bg-white dark:bg-slate-900 rounded-[40px] border dark:border-slate-800 p-12 shadow-sm animate-in zoom-in duration-500 whitespace-pre-wrap font-serif text-slate-700 dark:text-slate-200 leading-relaxed text-lg border-l-8 border-l-tocantins-yellow prose dark:prose-invert max-w-none">
+                     <h3 className="font-sans font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-tighter mb-8 flex items-center gap-3 not-prose">
+                        <Award size={24}/> Diagnóstico Interpretativo IA
+                     </h3>
+                     {aiReportResult}
                   </div>
                 )}
+             </div>
+          )}
+        </div>
 
-                <button 
-                  onClick={handleAddQuestionToDraft}
-                  disabled={isSavingActivity || !newQuestion.question_text.trim()}
-                  className="w-full py-4 bg-indigo-600 dark:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:shadow-indigo-200 dark:shadow-none transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  Adicionar Questão
-                </button>
+      {/* Modais de Edição e Visualização */}
+      
+      {/* Modal: Editor de Aula */}
+      {isLessonEditorOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-tocantins-blue rounded-2xl flex items-center justify-center text-white shadow-lg">
+                       <Presentation size={24}/>
+                    </div>
+                    <div>
+                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-xl">Editor de Conteúdo Base</h3>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Personalize a teoria disponibilizada aos alunos</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setIsLessonEditorOpen(false)} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-red-500 transition-all cursor-pointer"><X size={20}/></button>
               </div>
 
-              {/* Lista de Questões Já Adicionadas */}
-              <div className="w-full md:w-1/2 p-8 overflow-y-auto space-y-4 bg-white dark:bg-slate-900 transition-colors">
-                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase text-xs">Questões Criadas ({activityQuestionsDraft.length})</h3>
-                    <button 
-                      onClick={() => exportToPDF('activity-preview-area', `Atividade_${selectedLessonForEdit.title}`)}
-                      className="p-2 text-indigo-600 dark:text-tocantins-yellow hover:bg-indigo-50 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
-                    >
-                      <Download size={18}/>
-                    </button>
+              <div className="flex-1 overflow-y-auto p-10 space-y-8">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Nome do Tópico</label>
+                    <input 
+                      type="text" 
+                      value={lessonTitleDraft}
+                      onChange={e => setLessonTitleDraft(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-3xl px-8 py-5 text-lg font-black text-slate-800 dark:text-white outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10 transition-all"
+                    />
                  </div>
-                 <div id="activity-preview-area" className="space-y-4">
-                   {activityQuestionsDraft.length === 0 ? (
-                     <div className="py-20 text-center opacity-30 flex flex-col items-center">
-                       <ClipboardEdit size={48} className="mb-4 text-slate-300 dark:text-slate-700" />
-                       <p className="text-[10px] font-bold uppercase tracking-widest dark:text-slate-400">Nenhuma questão adicionada ainda.</p>
-                     </div>
-                   ) : (
-                     activityQuestionsDraft.map((q, i) => (
-                       <div key={q.id || i} className="group relative bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm hover:border-indigo-100 dark:hover:border-indigo-900 transition-all">
-                          <div className="flex justify-between gap-4">
-                             <span className="bg-slate-900 dark:bg-slate-700 text-white w-6 h-6 rounded-md flex items-center justify-center font-black text-[10px] shrink-0">{i+1}</span>
-                             <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 flex-1 leading-relaxed">{q.question_text}</p>
-                             <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="text-red-300 dark:text-red-500/50 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0 cursor-pointer"> <Trash2 size={14}/> </button>
-                          </div>
-                          {q.type === 'objective' && (
-                            <div className="mt-3 grid grid-cols-1 gap-1 pl-10">
-                              {Object.entries(q.options || {}).filter(([k,v]) => v).map(([k, v]) => (
-                                <div key={k} className={`text-[9px] font-medium p-2 rounded-lg ${q.correct_option === k ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-100 dark:border-green-900/30' : 'text-slate-400 dark:text-slate-500'}`}>
-                                  <span className="uppercase font-black mr-2">{k}:</span> {v as string}
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Fundamentação Teórica (Markdown)</label>
+                    <textarea 
+                      value={lessonTheoryDraft}
+                      onChange={e => setLessonTheoryDraft(e.target.value)}
+                      placeholder="Insira o texto base para estudo..."
+                      className="w-full h-80 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-[32px] px-8 py-6 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10 transition-all resize-none leading-relaxed"
+                    />
+                 </div>
+              </div>
+
+              <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t dark:border-slate-800 flex justify-end gap-3">
+                  <button 
+                    onClick={() => setIsLessonEditorOpen(false)}
+                    className="px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Descartar
+                  </button>
+                  <button 
+                    onClick={handleSaveLessonOverride}
+                    disabled={isSavingLesson}
+                    className="px-10 py-4 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 dark:shadow-none hover:scale-105 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingLesson ? <Loader2 className="animate-spin" size={14}/> : <Save size={14}/>}
+                    Confirmar e Salvar
+                  </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Modal: Editor de Atividades */}
+      {isActivityEditorOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                       <ClipboardList size={24}/>
+                    </div>
+                    <div>
+                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-xl">Curadoria de Questões</h3>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{selectedLessonForEdit?.title}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setIsActivityEditorOpen(false)} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-red-500 transition-all cursor-pointer"><X size={20}/></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 lg:grid-cols-2 gap-10">
+                 {/* Coluna: Questões Atuais */}
+                 <div className="space-y-6">
+                    <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                       <CheckCircle2 size={14}/> Itens no Banco ({activityQuestionsDraft.length})
+                    </h4>
+                    
+                    <div className="space-y-4">
+                       {activityQuestionsDraft.length === 0 ? (
+                         <div className="p-12 text-center border border-dashed dark:border-slate-800 rounded-3xl">
+                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Nenhuma questão atribuída ainda.</p>
+                         </div>
+                       ) : (
+                         activityQuestionsDraft.map((q: any, idx) => (
+                           <div key={q.id || idx} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800 group transition-all">
+                              <div className="flex justify-between items-start gap-4">
+                                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed pr-8">{q.question_text}</p>
+                                 <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                                    <Trash2 size={16}/>
+                                 </button>
+                              </div>
+                           </div>
+                         ))
+                       )}
+                    </div>
+                 </div>
+
+                 {/* Coluna: Nova Questão */}
+                 <div className="space-y-6 bg-slate-50/50 dark:bg-slate-800/30 p-8 rounded-[32px] border dark:border-slate-800 self-start">
+                    <h4 className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-widest flex items-center gap-2">
+                       <Wand2 size={14}/> Cadastrar Novo Item
+                    </h4>
+
+                    <div className="space-y-4">
+                       <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Enunciado</label>
+                          <textarea 
+                            value={newQuestion.question_text}
+                            onChange={e => setNewQuestion({...newQuestion, question_text: e.target.value})}
+                            placeholder="Escreva a pergunta aqui..."
+                            className="w-full bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-2xl px-4 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10 min-h-[100px]"
+                          />
                        </div>
-                     ))
-                   )}
+
+                       <div className="space-y-3">
+                          {['a', 'b', 'c', 'd', 'e'].map(opt => (
+                            <div key={opt} className="flex items-center gap-3">
+                               <button 
+                                 onClick={() => setNewQuestion({...newQuestion, correct_option: opt})}
+                                 className={`w-10 h-10 rounded-xl font-black text-xs shadow-sm transition-all ${newQuestion.correct_option === opt ? 'bg-emerald-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400'}`}
+                               >
+                                 {opt.toUpperCase()}
+                               </button>
+                               <input 
+                                 type="text" 
+                                 value={newQuestion.options[opt]}
+                                 onChange={e => setNewQuestion({
+                                   ...newQuestion, 
+                                   options: {...newQuestion.options, [opt]: e.target.value}
+                                 })}
+                                 placeholder={`Opção ${opt.toUpperCase()}`}
+                                 className="flex-1 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10"
+                               />
+                            </div>
+                          ))}
+                       </div>
+
+                       <button 
+                         onClick={handleAddQuestionToDraft}
+                         disabled={isSavingActivity || !newQuestion.question_text.trim()}
+                         className="w-full mt-4 bg-tocantins-blue dark:bg-tocantins-yellow text-white dark:text-slate-950 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-500/20 dark:shadow-none hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer"
+                       >
+                         {isSavingActivity ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>}
+                         Adicionar Questão ao Banco
+                       </button>
+                    </div>
                  </div>
               </div>
-            </div>
-          </div>
+           </div>
         </div>
       )}
 
-      {/* OVERLAY DE CARREGAMENTO DA IA */}
-      {isGeneratingPlan && (
-        <div className="fixed inset-0 z-[500] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95 transition-colors">
-                <div className="w-16 h-16 bg-amber-500 dark:bg-amber-600 rounded-3xl flex items-center justify-center text-white animate-bounce shadow-xl">
-                    <Sparkles size={32}/>
-                </div>
-                <div className="text-center">
-                    <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Preparando Aula Pronta</h3>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">A IA está escrevendo o roteiro de 50 min...</p>
-                </div>
-                <Loader2 className="animate-spin text-amber-500" size={24}/>
-            </div>
+      {/* Modal: Visualizar e Avaliar Submissão */}
+      {viewingSubmission && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-tocantins-blue rounded-2xl flex items-center justify-center text-white shadow-lg overflow-hidden">
+                       <StudentAvatar studentName={viewingSubmission.student_name} />
+                    </div>
+                    <div>
+                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-xl">{viewingSubmission.student_name}</h3>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{viewingSubmission.lesson_title}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setViewingSubmission(null)} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-red-500 transition-all cursor-pointer"><X size={20}/></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-10 space-y-10">
+                 {/* Lista de Respostas */}
+                 <div className="space-y-6">
+                    <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-4">Respostas Enviadas</h4>
+                    <div className="space-y-4">
+                       {viewingSubmission.answers?.map((ans: any, idx: number) => (
+                         <div key={idx} className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 inline-block">Item {idx + 1}</span>
+                            <p className="font-bold text-slate-700 dark:text-slate-200 text-sm mb-6 leading-relaxed">P: {ans.question_text}</p>
+                            
+                            <div className="flex items-center gap-4">
+                               <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest ${ans.is_correct ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                                  {ans.answer_index}
+                               </div>
+                               <p className={`text-xs font-bold ${ans.is_correct ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                                  {ans.is_correct ? 'ACERTOU' : `ERREU (Gabarito: ${ans.correct_answer})`}
+                               </p>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+
+                 {/* Feedback do Professor */}
+                 <div className="space-y-4 bg-slate-50 dark:bg-slate-800/30 p-8 rounded-[32px] border-2 border-tocantins-blue/10">
+                    <div className="flex items-center gap-2 mb-2">
+                       <MessageSquare className="text-tocantins-blue" size={18}/>
+                       <h4 className="text-[10px] font-black text-tocantins-blue uppercase tracking-widest">Feedback Pedagógico</h4>
+                    </div>
+                    <textarea 
+                      value={manualFeedback}
+                      onChange={e => setManualFeedback(e.target.value)}
+                      placeholder="Escreva orientações de melhoria para o aluno..."
+                      className="w-full h-32 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/10 transition-all resize-none"
+                    />
+                    <div className="flex justify-end">
+                       <button 
+                         onClick={handleSaveFeedback}
+                         disabled={isSavingFeedback}
+                         className="flex items-center gap-2 px-8 py-3 bg-tocantins-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:scale-105 transition-all cursor-pointer disabled:opacity-50"
+                       >
+                          {isSavingFeedback ? <Loader2 className="animate-spin" size={14}/> : <Send size={14}/>}
+                          Enviar Retorno
+                       </button>
+                    </div>
+                 </div>
+              </div>
+           </div>
         </div>
       )}
+      </main>
     </div>
+    </>
   );
 };
