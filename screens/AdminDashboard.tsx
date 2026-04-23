@@ -72,7 +72,7 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
-  const [filterSubject, setFilterSubject] = useState<string>('all');
+  const [filterSubject, setFilterSubject] = useState<string>(teacherSubject || 'all');
   
   // Dados do Banco
   const [questionBank, setQuestionBank] = useState<any[]>([]);
@@ -137,12 +137,14 @@ export const AdminDashboard: React.FC = () => {
   }, [teacherSubject, isSuper, navigate]);
 
   useEffect(() => {
-    fetchQuestionBank();
-    fetchSavedActivities();
-    fetchStudents();
-    fetchSubmissions();
-    fetchChatSessions();
-  }, []);
+    if (teacherSubject || isSuper) {
+      fetchQuestionBank();
+      fetchSavedActivities();
+      fetchStudents();
+      fetchSubmissions();
+      fetchChatSessions();
+    }
+  }, [teacherSubject, isSuper]);
 
   useEffect(() => {
     if (selectedChatStudentId) {
@@ -594,7 +596,17 @@ export const AdminDashboard: React.FC = () => {
                 {activeTab === 'reports' && 'Análise de Progresso'}
               </h2>
               <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
-                 <ShieldCheck size={14}/> {isSuper ? 'Ambiente Administrativo Geral' : `DOCENTE DE ${teacherSubject?.toUpperCase()}`}
+                 <ShieldCheck size={14}/> 
+                 {isSuper ? (
+                   <span className="text-slate-500">Ambiente Administrativo Geral</span>
+                 ) : (
+                   <div className="flex items-center gap-2">
+                     <span className="text-slate-500">Docente de</span>
+                     <span className={`px-2 py-0.5 rounded-md text-white ${subjectsInfo[teacherSubject as Subject]?.color || 'bg-slate-600'}`}>
+                       {subjectsInfo[teacherSubject as Subject]?.name || teacherSubject}
+                     </span>
+                   </div>
+                 )}
               </p>
             </div>
 
@@ -632,7 +644,9 @@ export const AdminDashboard: React.FC = () => {
                    </div>
 
                    <div className="grid grid-cols-1 gap-4">
-                     {(['historia', 'geografia', 'sociologia', 'filosofia'] as Subject[]).map((subjId) => {
+                     {(['historia', 'geografia', 'sociologia', 'filosofia'] as Subject[])
+                       .filter(subjId => isSuper || subjId === teacherSubject)
+                       .map((subjId) => {
                        const lessons = gradeData.bimesters.flatMap(b => b.lessons.filter(l => l.subject === subjId).map(l => ({...l, bimesterId: b.id})));
                        if (lessons.length === 0) return null;
                        return (

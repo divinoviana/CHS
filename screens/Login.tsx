@@ -64,35 +64,41 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
     grade: '1'
   });
 
-  const handleAdminAuth = (e: React.FormEvent) => {
+  const handleAdminAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    // Check if it's the super admin
-    if (adminData.email === 'admin@admin.com' && adminData.password === 'admin123') {
-       // This is a mock super admin for demo, in real case would use Firebase Auth
-       // But for now let's just use the teacher login logic
-       loginTeacher('filosofia' as Subject); // Default to one subject for super admin mock
-       navigate('/admin');
-       setLoading(false);
-       return;
-    }
-
-    // Check subjects
-    let foundSubject: Subject | null = null;
-    Object.entries(TEACHER_EMAILS).forEach(([subject, email]) => {
-      if (email === adminData.email) {
-        foundSubject = subject as Subject;
+    try {
+      // Check if it's the super admin
+      if (adminData.email === 'admin@admin.com' && adminData.password === 'admin123') {
+         await signInWithEmailAndPassword(auth, adminData.email, adminData.password);
+         loginTeacher('filosofia' as Subject); // Super admin gets a default subject but can bypass
+         navigate('/admin');
+         return;
       }
-    });
 
-    if (foundSubject && ADMIN_PASSWORDS[foundSubject] === adminData.password) {
-      loginTeacher(foundSubject);
-      navigate('/admin');
-    } else {
-      alert("Credenciais de administrador inválidas.");
+      // Check subjects
+      let foundSubject: Subject | null = null;
+      Object.entries(TEACHER_EMAILS).forEach(([subject, email]) => {
+        if (email === adminData.email) {
+          foundSubject = subject as Subject;
+        }
+      });
+
+      if (foundSubject && ADMIN_PASSWORDS[foundSubject] === adminData.password) {
+        // Authenticate with Firebase Auth so Firestore rules work
+        await signInWithEmailAndPassword(auth, adminData.email, adminData.password);
+        loginTeacher(foundSubject);
+        navigate('/admin');
+      } else {
+        alert("Credenciais de administrador inválidas.");
+      }
+    } catch (err: any) {
+      console.error("Admin Auth Error:", err);
+      alert("Erro ao acessar área docente: " + (err.message || "Verifique suas credenciais."));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
   
   const startCamera = async () => {
