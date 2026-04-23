@@ -96,6 +96,7 @@ export const AdminDashboard: React.FC = () => {
   const [isLessonEditorOpen, setIsLessonEditorOpen] = useState(false);
   const [isActivityEditorOpen, setIsActivityEditorOpen] = useState(false);
   const [selectedLessonForEdit, setSelectedLessonForEdit] = useState<any | null>(null);
+  const [selectedStudentEval, setSelectedStudentEval] = useState<any | null>(null);
   const [lessonTitleDraft, setLessonTitleDraft] = useState('');
   const [lessonTheoryDraft, setLessonTheoryDraft] = useState('');
   const [isSavingLesson, setIsSavingLesson] = useState(false);
@@ -566,19 +567,62 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [submissions, students, searchTerm, filterClass, filterGrade, filterSubject]);
 
+  const lessonToBimesterMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    curriculumData.forEach(grade => {
+      grade.bimesters.forEach(bimester => {
+        bimester.lessons.forEach(lesson => {
+          map[lesson.title] = bimester.id;
+        });
+      });
+    });
+    return map;
+  }, []);
+
   const studentsWithSubmissions = useMemo(() => {
     const map: Record<string, any> = {};
-    submissions.forEach(sub => {
-      const studentProfile = students.find(s => s.name === sub.student_name);
+    
+    // Filtramos as submissões primeiro usando os mesmos filtros da aba
+    const relevantSubmissions = submissions.filter(sub => {
+      const matchesSubject = filterSubject === 'all' || sub.subject === filterSubject;
+      
+      // Encontrar perfil do estudante para garantir filtros de turma/série
+      const studentProfile = students.find(s => s.id === sub.student_id || s.name === sub.student_name);
+      const studentClass = sub.school_class || studentProfile?.school_class;
+      const studentGrade = String(sub.grade || studentProfile?.grade || studentClass?.charAt(0) || '');
+      
+      const matchesClass = filterClass === 'all' || studentClass === filterClass;
+      const matchesGrade = filterGrade === 'all' || studentGrade === filterGrade;
+      
+      return matchesSubject && matchesClass && matchesGrade;
+    });
+
+    relevantSubmissions.forEach(sub => {
+      const studentProfile = students.find(s => s.id === sub.student_id || s.name === sub.student_name);
       if (studentProfile) {
         if (!map[studentProfile.id]) {
-          map[studentProfile.id] = { ...studentProfile, submissionCount: 0 };
+          map[studentProfile.id] = { 
+            ...studentProfile, 
+            submissionCount: 0,
+            bimesterGrades: { 1: 0, 2: 0, 3: 0, 4: 0 },
+            activities: []
+          };
         }
         map[studentProfile.id].submissionCount++;
+        
+        const bimester = lessonToBimesterMap[sub.lesson_title] || 1;
+        map[studentProfile.id].bimesterGrades[bimester] = (map[studentProfile.id].bimesterGrades[bimester] || 0) + (Number(sub.score) || 0);
+        map[studentProfile.id].activities.push({
+          title: sub.lesson_title,
+          score: sub.score,
+          bimester: bimester,
+          date: sub.submitted_at
+        });
       }
     });
-    return Object.values(map);
-  }, [submissions, students]);
+
+    return Object.values(map).sort((a: any, b: any) => a.name.localeCompare(b.name));
+  }, [submissions, students, filterClass, filterGrade, filterSubject, lessonToBimesterMap]);
 
   const classOptions = useMemo(() => {
     const classes = new Set(students.map(s => s.school_class));
@@ -997,19 +1041,55 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                     {studentsWithSubmissions.map((s: any) => (
-                       <div key={s.id} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 flex items-center gap-4 group hover:border-tocantins-blue/30 transition-all">
-                          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-md ring-4 ring-white dark:ring-slate-900">
-                             <StudentAvatar studentId={s.id} studentName={s.name} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                             <h4 className="font-black text-slate-800 dark:text-slate-100 truncate text-sm uppercase tracking-tight">{s.name}</h4>
-                             <p className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-widest mt-1">
-                                {s.submissionCount} Atividades Realizadas
-                             </p>
-                          </div>
+                     {studentsWithSubmissions.length === 0 ? (
+                       <div className="col-span-full py-20 text-center">
+                         <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 opacity-50">
+                           <Users size={32} className="text-slate-400" />
+                         </div>
+                         <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest">Nenhum estudante encontrado com submissões nesta turma/série.</p>
                        </div>
-                     ))}
+                     ) : (
+                       studentsWithSubmissions.map((s: any) => (
+                        <button 
+                          key={s.id} 
+                          onClick={() => setSelectedStudentEval(s)}
+                          className="w-full text-left bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[32px] border border-slate-100 dark:border-slate-800 flex flex-col gap-4 group hover:border-tocantins-blue/30 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer"
+                        >
+                           <div className="flex items-center gap-4">
+                             <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md ring-4 ring-white dark:ring-slate-900">
+                                <StudentAvatar studentId={s.id} studentName={s.name} />
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                <h4 className="font-black text-slate-800 dark:text-slate-100 truncate text-sm uppercase tracking-tight">{s.name}</h4>
+                                <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{s.grade}ª Série • {s.school_class}</span>
+                             </div>
+                           </div>
+
+                           <div className="grid grid-cols-4 gap-2 mt-2">
+                             {[1, 2, 3, 4].map(b => (
+                               <div key={b} className="bg-white dark:bg-slate-900 p-2 rounded-xl border dark:border-slate-800 text-center">
+                                 <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">B{b}</p>
+                                 <p className={`text-[10px] font-bold ${s.bimesterGrades?.[b] > 0 ? 'text-tocantins-blue dark:text-tocantins-yellow' : 'text-slate-300 dark:text-slate-700'}`}>
+                                   {s.bimesterGrades?.[b]?.toFixed(1) || '0.0'}
+                                 </p>
+                               </div>
+                             ))}
+                           </div>
+
+                           <div className="pt-4 border-t dark:border-slate-800 flex justify-between items-center">
+                             <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                               {s.submissionCount} Atividades
+                             </span>
+                             <div className="flex items-center gap-1 text-emerald-500">
+                               <Award size={14} />
+                               <span className="text-xs font-black">
+                                 {(Object.values(s.bimesterGrades || {}) as number[]).reduce((a, b) => a + b, 0).toFixed(1)}
+                               </span>
+                             </div>
+                           </div>
+                        </button>
+                      ))
+                     )}
                   </div>
                </div>
             </div>
@@ -1494,6 +1574,73 @@ export const AdminDashboard: React.FC = () => {
                          Adicionar Questão ao Banco
                        </button>
                     </div>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Modal: Detalhamento de Notas do Estudante */}
+      {selectedStudentEval && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[60] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="p-8 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                 <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-tocantins-blue rounded-2xl flex items-center justify-center text-white shadow-lg overflow-hidden ring-4 ring-white dark:ring-slate-900">
+                       <StudentAvatar studentId={selectedStudentEval.id} studentName={selectedStudentEval.name} />
+                    </div>
+                    <div>
+                       <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter text-xl">{selectedStudentEval.name}</h3>
+                       <p className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow uppercase tracking-widest mt-1">
+                         {selectedStudentEval.grade}ª Série • Turma {selectedStudentEval.school_class}
+                       </p>
+                    </div>
+                 </div>
+                 <button onClick={() => setSelectedStudentEval(null)} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 hover:text-red-500 transition-all cursor-pointer shadow-sm hover:rotate-90 duration-300"><X size={20}/></button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                 <div className="grid grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(b => (
+                      <div key={b} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 text-center">
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{b}º Bimestre</p>
+                         <p className="text-2xl font-black text-tocantins-blue dark:text-tocantins-yellow">
+                           {selectedStudentEval.bimesterGrades?.[b]?.toFixed(1) || '0.0'}
+                         </p>
+                      </div>
+                    ))}
+                 </div>
+
+                 <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Histórico de Atividades</h4>
+                    <div className="space-y-3">
+                       {selectedStudentEval.activities.sort((a:any, b:any) => (b.date?.seconds || 0) - (a.date?.seconds || 0)).map((act: any, idx: number) => (
+                         <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700 flex justify-between items-center group hover:border-tocantins-blue/30 transition-all">
+                            <div className="flex-1">
+                               <p className="font-bold text-slate-700 dark:text-slate-100 text-sm leading-tight">{act.title}</p>
+                               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{act.bimester}º Bimestre</span>
+                            </div>
+                            <div className="text-right">
+                               <div className="inline-flex items-center px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-xs font-black text-tocantins-blue dark:text-tocantins-yellow">
+                                 {act.score?.toFixed(1) || '0.0'}
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                       {selectedStudentEval.activities.length === 0 && (
+                         <p className="text-center py-8 text-slate-400 font-bold text-xs">Nenhum registro encontrado.</p>
+                       )}
+                    </div>
+                 </div>
+              </div>
+
+              <div className="p-8 border-t dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
+                 <div className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Aproveitamento Total</div>
+                 <div className="flex items-center gap-2 bg-tocantins-blue dark:bg-tocantins-yellow px-6 py-3 rounded-2xl shadow-xl shadow-blue-500/20 dark:shadow-none">
+                    <Award size={18} className="text-white dark:text-slate-950"/>
+                    <span className="text-lg font-black text-white dark:text-slate-950 tracking-tighter">
+                      {(Object.values(selectedStudentEval.bimesterGrades || {}) as number[]).reduce((a, b) => a + b, 0).toFixed(1)} Pts
+                    </span>
                  </div>
               </div>
            </div>
