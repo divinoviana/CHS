@@ -29,6 +29,7 @@ function AppContent() {
       <main className="flex-grow">
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/admin/login" element={<Login adminMode={true} />} />
           <Route path="/" element={<StudentRoute><Home /></StudentRoute>} />
           <Route path="/grade/:id" element={<StudentRoute><GradeView /></StudentRoute>} />
           <Route path="/lesson/:lessonId" element={<StudentRoute><LessonView /></StudentRoute>} />

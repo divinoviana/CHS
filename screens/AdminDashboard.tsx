@@ -132,7 +132,7 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     if (!teacherSubject && !isSuper) {
-      navigate('/login');
+      navigate('/admin/login');
     }
   }, [teacherSubject, isSuper, navigate]);
 

@@ -12,22 +12,31 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
-export const Login: React.FC = () => {
-  const { student, loginStudent } = useAuth();
+import { TEACHER_EMAILS, ADMIN_PASSWORDS } from '../data_admin';
+import { Subject } from '../types';
+
+export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) => {
+  const { student, loginStudent, loginTeacher } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isAdminLogin, setIsAdminLogin] = useState(adminMode);
   const [loading, setLoading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const navigate = useNavigate();
-  
+
   const [photo, setPhoto] = useState<string | null>(null);
   const [googleUserPending, setGoogleUserPending] = useState<any>(null);
 
   // Redirect if already logged in and profile is complete
   React.useEffect(() => {
-    if (student && !googleUserPending && student.grade) {
+    if (student && !googleUserPending && student.grade && !isAdminLogin) {
       navigate('/');
     }
-  }, [student, googleUserPending, navigate]);
+  }, [student, googleUserPending, navigate, isAdminLogin]);
+
+  const [adminData, setAdminData] = useState({
+    email: '',
+    password: ''
+  });
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +48,37 @@ export const Login: React.FC = () => {
     school_class: '',
     grade: '1'
   });
+
+  const handleAdminAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    // Check if it's the super admin
+    if (adminData.email === 'admin@admin.com' && adminData.password === 'admin123') {
+       // This is a mock super admin for demo, in real case would use Firebase Auth
+       // But for now let's just use the teacher login logic
+       loginTeacher('filosofia' as Subject); // Default to one subject for super admin mock
+       navigate('/admin');
+       setLoading(false);
+       return;
+    }
+
+    // Check subjects
+    let foundSubject: Subject | null = null;
+    Object.entries(TEACHER_EMAILS).forEach(([subject, email]) => {
+      if (email === adminData.email) {
+        foundSubject = subject as Subject;
+      }
+    });
+
+    if (foundSubject && ADMIN_PASSWORDS[foundSubject] === adminData.password) {
+      loginTeacher(foundSubject);
+      navigate('/admin');
+    } else {
+      alert("Credenciais de administrador inválidas.");
+    }
+    setLoading(false);
+  };
   
   const startCamera = async () => {
     setShowCamera(true);
@@ -184,7 +224,7 @@ export const Login: React.FC = () => {
             <GraduationCap className="w-10 h-10 text-white dark:text-slate-950" />
           </div>
           <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-            {googleUserPending ? 'Completar Perfil' : isRegistering ? 'Novo Cadastro' : 'Portal do Aluno'}
+            {googleUserPending ? 'Completar Perfil' : isAdminLogin ? 'Acesso Administrativo' : isRegistering ? 'Novo Cadastro' : 'Portal do Aluno'}
           </h2>
           <p className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Ciências Humanas - Tocantins</p>
         </div>
@@ -216,6 +256,29 @@ export const Login: React.FC = () => {
             <button type="button" onClick={() => setGoogleUserPending(null)} className="w-full text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-4 hover:text-red-500 transition-colors">
               Cancelar e voltar
             </button>
+          </form>
+        ) : isAdminLogin ? (
+          <form onSubmit={handleAdminAuth} className="space-y-4">
+             <div className="space-y-3">
+                <div className="relative">
+                  <input required type="email" placeholder="E-mail do Professor" className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={adminData.email} onChange={e => setAdminData({...adminData, email: e.target.value})} />
+                  <User className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
+                </div>
+                <div className="relative">
+                  <input required type="password" placeholder="Senha de Acesso" className="w-full p-4 pl-12 bg-slate-50 dark:bg-slate-800 dark:text-white border dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-1 focus:ring-tocantins-blue transition-colors" value={adminData.password} onChange={e => setAdminData({...adminData, password: e.target.value})} />
+                  <Lock className="absolute left-4 top-4 text-slate-300 dark:text-slate-600" size={18} />
+                </div>
+              </div>
+
+              <button disabled={loading} className="w-full bg-slate-900 dark:bg-tocantins-yellow text-white dark:text-slate-950 p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex justify-center items-center gap-2 cursor-pointer active:scale-95 transition-all">
+                {loading ? <Loader2 className="animate-spin" /> : 'Acessar Painel'}
+              </button>
+
+              <div className="mt-8 text-center border-t dark:border-slate-800 pt-6">
+                <button type="button" onClick={() => setIsAdminLogin(false)} className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow uppercase tracking-widest transition-colors cursor-pointer">
+                  Voltar para Portal do Aluno
+                </button>
+              </div>
           </form>
         ) : (
           <>
@@ -316,10 +379,16 @@ export const Login: React.FC = () => {
               </button>
             </form>
 
-            <div className="mt-8 text-center border-t dark:border-slate-800 pt-6">
+            <div className="mt-8 text-center border-t dark:border-slate-800 pt-6 flex flex-col gap-4">
               <button onClick={() => setIsRegistering(!isRegistering)} className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-tocantins-blue dark:hover:text-tocantins-yellow uppercase tracking-widest transition-colors cursor-pointer">
                 {isRegistering ? 'Já tenho uma conta? Fazer Login' : 'Não tem conta? Registre-se aqui'}
               </button>
+              
+              {!isRegistering && (
+                <button onClick={() => setIsAdminLogin(true)} className="text-[10px] font-black text-tocantins-blue dark:text-tocantins-yellow opacity-60 hover:opacity-100 uppercase tracking-widest transition-colors cursor-pointer flex items-center justify-center gap-2">
+                  <Lock size={12} /> ÁREA DO PROFESSOR
+                </button>
+              )}
             </div>
           </>
         )}
