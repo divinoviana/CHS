@@ -18,7 +18,7 @@ import {
   Clock, Send, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, 
   BarChart3, Printer, Wand2, Library, ListChecks, Database,
-  Sun, Moon, Presentation, ClipboardList, LogOut, Pencil, Eye, AlertTriangle, UserCircle
+  Sun, Moon, Presentation, ClipboardList, LogOut, Pencil, Eye, AlertTriangle, UserCircle, RotateCw
 } from 'lucide-react';
 
 // Componente otimizado para buscar a foto de cada aluno individualmente
@@ -90,6 +90,8 @@ export const AdminDashboard: React.FC = () => {
   const [isSendingReply, setIsSendingReply] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
   // Estados de Editores e Modais
   const [isLessonEditorOpen, setIsLessonEditorOpen] = useState(false);
   const [isActivityEditorOpen, setIsActivityEditorOpen] = useState(false);
@@ -248,6 +250,23 @@ export const AdminDashboard: React.FC = () => {
       
       setChatSessions(Object.values(sessionsMap));
     } catch (e) {
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchStudents(),
+        fetchSubmissions(),
+        fetchQuestionBank(),
+        fetchSavedActivities(),
+        fetchChatSessions()
+      ]);
+    } catch (e) {
+      console.error("Erro ao atualizar:", e);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -520,12 +539,20 @@ export const AdminDashboard: React.FC = () => {
       const matchesSearch = searchTerm === '' || 
         sub.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sub.lesson_title?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesClass = filterClass === 'all' || sub.school_class === filterClass;
-      const matchesGrade = filterGrade === 'all' || String(sub.grade || '') === filterGrade;
+      
+      // Fallback: se a submissão não tiver turma, procuramos no perfil atual do estudante
+      const studentProfile = students.find(s => s.name === sub.student_name || s.id === sub.student_id);
+      const studentClass = sub.school_class || studentProfile?.school_class;
+      const matchesClass = filterClass === 'all' || studentClass === filterClass;
+      
+      const studentGrade = String(sub.grade || studentProfile?.grade || studentClass?.charAt(0) || '');
+      const matchesGrade = filterGrade === 'all' || studentGrade === filterGrade;
+      
       const matchesSubject = filterSubject === 'all' || sub.subject === filterSubject;
+      
       return matchesSearch && matchesClass && matchesSubject && matchesGrade;
     });
-  }, [submissions, searchTerm, filterClass, filterGrade, filterSubject]);
+  }, [submissions, students, searchTerm, filterClass, filterGrade, filterSubject]);
 
   const studentsWithSubmissions = useMemo(() => {
     const map: Record<string, any> = {};
@@ -669,6 +696,15 @@ export const AdminDashboard: React.FC = () => {
                              {classOptions.map(c => <option key={c} value={c}>Turma: {c}</option>)}
                           </select>
                        </div>
+
+                       <button 
+                         onClick={handleRefresh}
+                         disabled={isRefreshing}
+                         className={`p-3 rounded-full bg-white dark:bg-slate-900 border dark:border-slate-800 shadow-sm transition-all hover:scale-110 active:scale-95 ${isRefreshing ? 'animate-spin cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}
+                         title="Atualizar Dados"
+                       >
+                         <RotateCw size={16} className="text-tocantins-blue dark:text-tocantins-yellow" />
+                       </button>
                     </div>
                   </>
                 )}
