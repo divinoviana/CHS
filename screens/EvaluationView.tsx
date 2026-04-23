@@ -97,6 +97,7 @@ export const EvaluationView: React.FC = () => {
         student_id: student.id,
         student_name: student.name.trim(),
         school_class: student.school_class.trim(),
+        grade: student.grade,
         lesson_title: `Avaliação Bimestral: ${exam.bimester}º Bimestre`.trim(),
         subject: exam.subject,
         score: finalScore,
@@ -105,7 +106,7 @@ export const EvaluationView: React.FC = () => {
            answer: `Opção ${answers[q.id].toUpperCase()}`
         })),
         teacher_feedback: `Simulado automático finalizado. Acertos: ${correctCount}/${exam.questions.length}.`,
-        submitted_at: serverTimestamp()
+        created_at: serverTimestamp()
       });
 
       setIsFinished(true);

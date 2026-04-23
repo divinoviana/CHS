@@ -72,6 +72,7 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('all');
+  const [filterGrade, setFilterGrade] = useState('all');
   const [filterSubject, setFilterSubject] = useState<string>(teacherSubject || 'all');
   
   // Dados do Banco
@@ -207,11 +208,20 @@ export const AdminDashboard: React.FC = () => {
   const fetchSubmissions = async () => {
     try {
       const q = isSuper
-        ? query(collection(db, 'submissions'), orderBy('created_at', 'desc'))
-        : query(collection(db, 'submissions'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
+        ? query(collection(db, 'submissions'))
+        : query(collection(db, 'submissions'), where('subject', '==', teacherSubject));
       
       const snapshot = await getDocs(q);
-      setSubmissions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Ordenação em memória para suportar tanto created_at quanto submitted_at
+      data.sort((a: any, b: any) => {
+        const dateA = a.created_at?.toDate?.() || a.submitted_at?.toDate?.() || 0;
+        const dateB = b.created_at?.toDate?.() || b.submitted_at?.toDate?.() || 0;
+        return (dateB instanceof Date ? dateB.getTime() : 0) - (dateA instanceof Date ? dateA.getTime() : 0);
+      });
+      
+      setSubmissions(data);
     } catch (e) {
       console.error("Erro ao buscar submissões:", e);
     }
@@ -399,8 +409,11 @@ export const AdminDashboard: React.FC = () => {
     setIsSeedingStudents(true);
     try {
       for (const student of STUDENTS_SEED_DATA) {
+        // Tenta inferir a série a partir da turma se não houver campo grade
+        const grade = (student as any).grade || (student.school_class ? student.school_class.charAt(0) : '1');
         await setDoc(doc(db, 'students', student.email.replace(/[@.]/g, '_')), {
           ...student,
+          grade: Number(grade),
           created_at: serverTimestamp()
         });
       }
@@ -496,17 +509,23 @@ export const AdminDashboard: React.FC = () => {
     return students.filter(st => {
       const matchesSearch = st.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesClass = filterClass === 'all' || st.school_class === filterClass;
-      return matchesSearch && matchesClass;
+      const studentGrade = String(st.grade || st.school_class?.charAt(0) || '');
+      const matchesGrade = filterGrade === 'all' || studentGrade === filterGrade;
+      return matchesSearch && matchesClass && matchesGrade;
     });
-  }, [students, searchTerm, filterClass]);
+  }, [students, searchTerm, filterClass, filterGrade]);
 
   const filteredSubmissions = useMemo(() => {
     return submissions.filter(sub => {
+      const matchesSearch = searchTerm === '' || 
+        sub.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sub.lesson_title?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesClass = filterClass === 'all' || sub.school_class === filterClass;
+      const matchesGrade = filterGrade === 'all' || String(sub.grade || '') === filterGrade;
       const matchesSubject = filterSubject === 'all' || sub.subject === filterSubject;
-      return matchesClass && matchesSubject;
+      return matchesSearch && matchesClass && matchesSubject && matchesGrade;
     });
-  }, [submissions, filterClass, filterSubject]);
+  }, [submissions, searchTerm, filterClass, filterGrade, filterSubject]);
 
   const studentsWithSubmissions = useMemo(() => {
     const map: Record<string, any> = {};
@@ -583,7 +602,7 @@ export const AdminDashboard: React.FC = () => {
       <main className="flex-1 overflow-y-auto h-screen p-8">
         <div className="max-w-6xl mx-auto">
           {/* Header Superior */}
-          <header className="flex justify-between items-center mb-10">
+          <header className="flex flex-wrap justify-between items-center gap-6 mb-10">
             <div>
               <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none">
                 {activeTab === 'lessons_list' && 'Gestão de Conteúdo'}
@@ -610,19 +629,49 @@ export const AdminDashboard: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-4">
-               {['students', 'submissions', 'evaluations', 'question_bank'].includes(activeTab) && (
-                 <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-tocantins-blue transition-colors" size={16}/>
-                    <input 
-                      type="text" 
-                      placeholder="Buscar por nome ou tema..."
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                      className="bg-white dark:bg-slate-900 border dark:border-slate-800 pl-12 pr-6 py-4 rounded-3xl text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/20 outline-none w-80 transition-all"
-                    />
-                 </div>
-               )}
+            <div className="flex flex-wrap items-center gap-4">
+                {['students', 'submissions', 'evaluations', 'question_bank'].includes(activeTab) && (
+                  <>
+                    <div className="relative group">
+                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-tocantins-blue transition-colors" size={16}/>
+                       <input 
+                         type="text" 
+                         placeholder="Buscar por nome ou tema..."
+                         value={searchTerm}
+                         onChange={e => setSearchTerm(e.target.value)}
+                         className="bg-white dark:bg-slate-900 border dark:border-slate-800 pl-12 pr-6 py-4 rounded-3xl text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/20 outline-none w-64 transition-all"
+                       />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                       <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-3xl px-4 py-2 shadow-sm">
+                          <Filter size={14} className="text-slate-400"/>
+                          <select 
+                            value={filterGrade}
+                            onChange={e => setFilterGrade(e.target.value)}
+                            className="bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 outline-none cursor-pointer"
+                          >
+                             <option value="all">Série: Todas</option>
+                             <option value="1">1ª Série</option>
+                             <option value="2">2ª Série</option>
+                             <option value="3">3ª Série</option>
+                          </select>
+                       </div>
+
+                       <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-3xl px-4 py-2 shadow-sm">
+                          <Users size={14} className="text-slate-400"/>
+                          <select 
+                            value={filterClass}
+                            onChange={e => setFilterClass(e.target.value)}
+                            className="bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 outline-none cursor-pointer"
+                          >
+                             <option value="all">Turma: Todas</option>
+                             {classOptions.map(c => <option key={c} value={c}>Turma: {c}</option>)}
+                          </select>
+                       </div>
+                    </div>
+                  </>
+                )}
             </div>
           </header>
 
@@ -858,7 +907,7 @@ export const AdminDashboard: React.FC = () => {
                                <span className="text-[10px] uppercase font-black text-slate-400">{sub.subject}</span>
                             </td>
                             <td className="p-6 text-xs text-slate-500 font-bold">
-                               {sub.created_at?.toDate ? sub.created_at.toDate().toLocaleString() : 'Recente'}
+                               {(sub.created_at?.toDate ? sub.created_at.toDate() : (sub.submitted_at?.toDate ? sub.submitted_at.toDate() : null))?.toLocaleString() || 'Recente'}
                             </td>
                             <td className="p-6">
                                <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${
