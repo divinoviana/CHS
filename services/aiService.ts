@@ -116,7 +116,7 @@ export const generateActivityImage = async (prompt: string): Promise<string> => 
   return callAIWithRetry(async () => {
     const ai = getAIClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-1.5-flash',
       contents: {
         parts: [
           {
@@ -283,7 +283,7 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
       ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-1.5-pro",
         contents: prompt,
         config: {
           systemInstruction: "Você é um professor acadêmico de alto nível, especialista em Ciências Humanas. Sua missão é produzir conteúdo intelectualmente denso, que desafie o aluno a pensar criticamente e aprofundar seu conhecimento. Evite clichês e generalizações. Siga rigorosamente o schema JSON.",
@@ -345,7 +345,7 @@ export const generateLessonPlan = async (subject: string, theme: string, grade: 
     - suggestedActivity: Uma proposta de atividade prática ou de pesquisa que exija protagonismo do aluno e aplicação dos conceitos discutidos.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-1.5-pro",
       contents: prompt,
       config: {
         systemInstruction: "Você é um mentor pedagógico doutor em Ciências Humanas. Crie planos de aula que sejam referências de profundidade teórica e clareza metodológica. A teoria deve ser um texto de excelência acadêmica, mas acessível ao Ensino Médio de alto nível.",
@@ -440,7 +440,7 @@ export const generateBimonthlyEvaluation = async (
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
       ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-1.5-pro",
         contents: prompt,
         config: {
           systemInstruction: "Você é um especialista em avaliação educacional de alto nível. Gere questões que testem a profundidade do conhecimento e a capacidade analítica do aluno, seguindo o rigor acadêmico das Ciências Humanas. Siga rigorosamente o schema JSON.",
@@ -509,7 +509,7 @@ export const evaluateActivities = async (
     No 'generalComment', faça um balanço geral do desempenho do aluno nesta atividade, destacando pontos fortes e fracos.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: prompt,
       config: {
         systemInstruction: "Você é um tutor acadêmico experiente. Forneça feedbacks construtivos, detalhados e que estimulem o aprendizado do aluno.",
@@ -551,7 +551,7 @@ export const generatePedagogicalSummary = async (
     Seja profissional, empático e focado em soluções.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-1.5-pro",
       contents: prompt,
       config: {
         systemInstruction: "Você é um Coordenador Pedagógico experiente. Gere relatórios analíticos, bem estruturados em Markdown, focados no desenvolvimento do aluno/turma."

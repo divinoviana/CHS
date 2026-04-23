@@ -151,11 +151,19 @@ export const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     if (selectedChatStudentId) {
-      const q = query(
-        collection(db, 'messages'),
-        where('student_id', '==', selectedChatStudentId),
-        orderBy('created_at', 'asc')
-      );
+      const q = isSuper
+        ? query(
+          collection(db, 'messages'),
+          where('student_id', '==', selectedChatStudentId),
+          orderBy('created_at', 'asc')
+        )
+        : query(
+          collection(db, 'messages'),
+          where('student_id', '==', selectedChatStudentId),
+          where('subject', '==', teacherSubject),
+          orderBy('created_at', 'asc')
+        );
+      
       const unsubscribe = onSnapshot(q, (snapshot) => {
         setSelectedChatMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
@@ -231,7 +239,10 @@ export const AdminDashboard: React.FC = () => {
 
   const fetchChatSessions = async () => {
     try {
-      const q = query(collection(db, 'messages'), orderBy('created_at', 'desc'));
+      const q = isSuper
+        ? query(collection(db, 'messages'), orderBy('created_at', 'desc'))
+        : query(collection(db, 'messages'), where('subject', '==', teacherSubject), orderBy('created_at', 'desc'));
+      
       const snapshot = await getDocs(q);
       const msgs = snapshot.docs.map(doc => doc.data());
       
@@ -282,6 +293,7 @@ export const AdminDashboard: React.FC = () => {
         student_name: studentName,
         content: teacherReplyText,
         is_from_teacher: true,
+        subject: teacherSubject || 'Geral',
         created_at: serverTimestamp()
       });
       setTeacherReplyText('');
@@ -947,11 +959,11 @@ export const AdminDashboard: React.FC = () => {
                             </td>
                             <td className="p-6">
                                <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${
-                                 Number(sub.grade_auto || 0) >= 7 
+                                 Number(sub.score || 0) >= 7 
                                    ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' 
                                    : 'bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400'
                                }`}>
-                                 {sub.grade_auto} / 10
+                                 {typeof sub.score === 'number' ? sub.score.toFixed(1) : (sub.score || sub.grade_auto || 0)} / 10
                                </div>
                             </td>
                             <td className="p-6">
@@ -1506,23 +1518,43 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-10 space-y-10">
+                 {/* Feedback da IA (se houver) */}
+                 {viewingSubmission.ai_feedback && (
+                   <div className="bg-indigo-50 dark:bg-indigo-900/10 p-8 rounded-[32px] border border-indigo-100 dark:border-indigo-800/30">
+                      <div className="flex items-center gap-2 mb-4">
+                         <Sparkles className="text-indigo-600 dark:text-indigo-400" size={18}/>
+                         <h4 className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Análise Automática da IA</h4>
+                      </div>
+                      <p className="text-slate-700 dark:text-slate-300 italic text-sm mb-4 leading-relaxed">"{viewingSubmission.ai_feedback.generalComment}"</p>
+                      
+                      {viewingSubmission.ai_feedback.corrections?.length > 0 && (
+                        <div className="space-y-3 mt-6">
+                           <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Detalhamento da IA:</h5>
+                           {viewingSubmission.ai_feedback.corrections.map((c: any, idx: number) => (
+                             <div key={idx} className="p-4 bg-white dark:bg-slate-900 rounded-2xl border dark:border-slate-800">
+                                <div className="flex justify-between items-start mb-2">
+                                   <p className="text-[10px] font-bold text-slate-500 max-w-[70%]">{c.question}</p>
+                                   <span className={`text-[10px] font-black uppercase ${c.isCorrect ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                      {c.isCorrect ? 'Correta' : 'Incorreta'} • Nota {c.score}
+                                   </span>
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">{c.feedback}</p>
+                             </div>
+                           ))}
+                        </div>
+                      )}
+                   </div>
+                 )}
+
                  {/* Lista de Respostas */}
                  <div className="space-y-6">
-                    <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-4">Respostas Enviadas</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-4">Respostas do Estudante</h4>
                     <div className="space-y-4">
-                       {viewingSubmission.answers?.map((ans: any, idx: number) => (
+                       {(viewingSubmission.content || viewingSubmission.answers)?.map((ans: any, idx: number) => (
                          <div key={idx} className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 inline-block">Item {idx + 1}</span>
-                            <p className="font-bold text-slate-700 dark:text-slate-200 text-sm mb-6 leading-relaxed">P: {ans.question_text}</p>
-                            
-                            <div className="flex items-center gap-4">
-                               <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest ${ans.is_correct ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                                  {ans.answer_index}
-                               </div>
-                               <p className={`text-xs font-bold ${ans.is_correct ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                                  {ans.is_correct ? 'ACERTOU' : `ERREU (Gabarito: ${ans.correct_answer})`}
-                               </p>
-                            </div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 inline-block">Questão {idx + 1} ({ans.activityTitle || 'Atividade'})</span>
+                            <p className="font-bold text-slate-700 dark:text-slate-200 text-sm mb-4 leading-relaxed">P: {ans.question || ans.question_text}</p>
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-4 rounded-2xl border dark:border-slate-800 italic">R: {ans.answer || ans.student_answer}</p>
                          </div>
                        ))}
                     </div>

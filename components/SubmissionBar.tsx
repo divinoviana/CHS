@@ -75,6 +75,7 @@ export const SubmissionBar: React.FC<Props> = ({
         student_id: student?.id || 'anonymous',
         student_name: safeStudentName,
         school_class: safeSchoolClass,
+        grade: student?.grade || '1',
         lesson_title: lessonTitle?.trim() || 'Aula sem título',
         subject: subject,
         submitted_at: serverTimestamp(),

@@ -30,7 +30,7 @@ export const Contact: React.FC = () => {
     setLoadingMessages(true);
     const q = query(
       collection(db, 'messages'),
-      where('sender_id', '==', student.id),
+      where('student_id', '==', student.id),
       where('subject', '==', selectedSubject),
       orderBy('created_at', 'asc')
     );
@@ -57,14 +57,15 @@ export const Contact: React.FC = () => {
     setSending(true);
     try {
       await addDoc(collection(db, 'messages'), {
-        sender_id: student.id, 
-        sender_name: student.name,
+        student_id: student.id,
+        student_name: student.name,
         school_class: student.school_class, 
         grade: student.grade,
         content: newMessage.trim(), 
         is_from_teacher: false, 
         subject: selectedSubject,
-        created_at: serverTimestamp()
+        created_at: serverTimestamp(),
+        sender_id: student.id
       });
       setNewMessage('');
     } catch (e: any) {
