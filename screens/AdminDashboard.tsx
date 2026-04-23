@@ -64,8 +64,8 @@ const StudentAvatar: React.FC<{ studentId?: string; studentName: string }> = ({ 
 // Componente principal do Painel Administrativo
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { student, teacherSubject, logoutTeacher } = useAuth();
-  const isSuper = student?.email === 'admin@admin.com';
+  const { student, teacherSubject, logoutTeacher, isLoading: isAuthLoading } = useAuth();
+  const isSuper = student?.email === 'admin@admin.com' || student?.email === 'divinoviana@gmail.com';
 
   // Estados principais
   const [activeTab, setActiveTab] = useState<'question_bank' | 'submissions' | 'students' | 'messages' | 'lessons_list' | 'exam_generator' | 'reports' | 'evaluations'>('lessons_list');
@@ -135,20 +135,20 @@ export const AdminDashboard: React.FC = () => {
   const [isSeedingStudents, setIsSeedingStudents] = useState(false);
 
   useEffect(() => {
-    if (!teacherSubject && !isSuper) {
+    if (!isAuthLoading && !teacherSubject && !isSuper) {
       navigate('/admin/login');
     }
-  }, [teacherSubject, isSuper, navigate]);
+  }, [teacherSubject, isSuper, navigate, isAuthLoading]);
 
   useEffect(() => {
-    if (teacherSubject || isSuper) {
+    if (!isAuthLoading && (teacherSubject || isSuper)) {
       fetchQuestionBank();
       fetchSavedActivities();
       fetchStudents();
       fetchSubmissions();
       fetchChatSessions();
     }
-  }, [teacherSubject, isSuper]);
+  }, [teacherSubject, isSuper, isAuthLoading]);
 
   useEffect(() => {
     if (selectedChatStudentId) {
@@ -697,7 +697,7 @@ export const AdminDashboard: React.FC = () => {
                 {activeTab === 'exam_generator' && 'Gerador de Provas'}
                 {activeTab === 'reports' && 'Análise de Progresso'}
               </h2>
-              <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
+              <div className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
                  <ShieldCheck size={14}/> 
                  {isSuper ? (
                    <span className="text-slate-500">Ambiente Administrativo Geral</span>
@@ -709,7 +709,7 @@ export const AdminDashboard: React.FC = () => {
                      </span>
                    </div>
                  )}
-              </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-4">

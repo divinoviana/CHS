@@ -70,7 +70,7 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
     
     try {
       // Check if it's the super admin
-      if (adminData.email === 'admin@admin.com' && adminData.password === 'admin123') {
+      if ((adminData.email === 'admin@admin.com' || adminData.email === 'divinoviana@gmail.com') && adminData.password === 'admin123') {
          await signInWithEmailAndPassword(auth, adminData.email, adminData.password);
          loginTeacher('filosofia' as Subject); // Super admin gets a default subject but can bypass
          navigate('/admin');
@@ -148,6 +148,9 @@ export const Login: React.FC<{ adminMode?: boolean }> = ({ adminMode = false }) 
       if (studentDoc.exists()) {
         loginStudent({ id: user.uid, ...studentDoc.data() });
         navigate('/');
+      } else if (user.email === 'admin@admin.com' || user.email === 'divinoviana@gmail.com') {
+        loginTeacher('filosofia');
+        navigate('/admin');
       } else {
         // Novo usuário, precisa escolher série e turma
         setGoogleUserPending(user);
