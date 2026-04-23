@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    base: './',
+    base: '/',
     define: {
       // Substitui as variáveis pelos valores reais durante o build
       'process.env.API_KEY': JSON.stringify(API_KEY),
