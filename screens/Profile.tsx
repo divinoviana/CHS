@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Upload, X, ArrowLeft, Loader2, Save, User } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
 export const Profile: React.FC = () => {
@@ -31,10 +31,30 @@ export const Profile: React.FC = () => {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d')?.drawImage(video, 0, 0);
-      setNewPhoto(canvas.toDataURL('image/jpeg'));
+      
+      // Cap max resolution to prevent exceeding 1MB Firestore limit
+      const maxDim = 512;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+      
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = (maxDim / width) * height;
+          width = maxDim;
+        } else {
+          width = (maxDim / height) * width;
+          height = maxDim;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0, width, height);
+      
+      // Use lower quality to ensure size is below 1MB
+      setNewPhoto(canvas.toDataURL('image/jpeg', 0.6));
+      
       const stream = video.srcObject as MediaStream;
       stream.getTracks().forEach(t => t.stop());
       setShowCamera(false);
@@ -45,15 +65,32 @@ export const Profile: React.FC = () => {
     if (!newPhoto || !student) return;
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'students', student.id), {
-        photo_url: newPhoto
-      });
+      // Use setDoc with merge: true to avoid "No document to update" error if the profile 
+      // is missing (common for admins/teachers not registered as students).
+      // We ensure all required fields for isValidStudent are present if it's a new document.
+      const profileData: any = { photo_url: newPhoto };
+      
+      // If it's a basic profile (admin/teacher without full student registration)
+      if (!student.grade || !student.school_class) {
+        profileData.name = student.name || 'Usuário';
+        profileData.email = student.email || '';
+        profileData.role = 'admin'; 
+        profileData.grade = student.grade || 'N/A';
+        profileData.school_class = student.school_class || 'N/A';
+      }
+      
+      await setDoc(doc(db, 'students', student.id), profileData, { merge: true });
 
-      updateStudentData({ photo_url: newPhoto });
+      updateStudentData(profileData);
       alert("Foto atualizada com sucesso!");
       setNewPhoto(null);
     } catch (err: any) {
-      handleFirestoreError(err, OperationType.UPDATE, `students/${student.id}`);
+      console.error("Save Profile Error:", err);
+      if (err.message?.includes("PERMISSION_DENIED") || err.code === "permission-denied") {
+        alert("Erro de permissão: Você pode não ter autorização para editar este perfil ou a imagem é muito grande (limite de 1MB).");
+      } else {
+        handleFirestoreError(err, OperationType.UPDATE, `students/${student.id}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,7 +133,32 @@ export const Profile: React.FC = () => {
                 const file = e.target.files?.[0];
                 if (file) {
                   const reader = new FileReader();
-                  reader.onloadend = () => setNewPhoto(reader.result as string);
+                  reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      const maxDim = 512;
+                      let width = img.width;
+                      let height = img.height;
+
+                      if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                          height = (maxDim / width) * height;
+                          width = maxDim;
+                        } else {
+                          width = (maxDim / height) * width;
+                          height = maxDim;
+                        }
+                      }
+
+                      canvas.width = width;
+                      canvas.height = height;
+                      const ctx = canvas.getContext('2d');
+                      ctx?.drawImage(img, 0, 0, width, height);
+                      setNewPhoto(canvas.toDataURL('image/jpeg', 0.6));
+                    };
+                    img.src = event.target?.result as string;
+                  };
                   reader.readAsDataURL(file);
                 }
               }} />
