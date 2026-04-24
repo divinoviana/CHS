@@ -14,6 +14,7 @@ service cloud.firestore {
       return isAuthenticated() && (
         (request.auth.token.email != null && (
           request.auth.token.email.lower() == 'divinoviana@gmail.com' ||
+          request.auth.token.email.lower() == 'admin@admin.com' ||
           request.auth.token.email.lower() == 'divino.viana@professor.to.gov.br' ||
           request.auth.token.email.lower() == 'filosofia@frederico.edu.br' ||
           request.auth.token.email.lower() == 'geografia@frederico.edu.br' ||

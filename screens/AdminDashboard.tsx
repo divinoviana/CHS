@@ -323,9 +323,10 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleOpenLessonEditor = (lesson: any) => {
+    const override = lessonOverrides[lesson.id];
     setSelectedLessonForEdit(lesson);
-    setLessonTitleDraft(lesson.title);
-    setLessonTheoryDraft(lesson.theory || '');
+    setLessonTitleDraft(override?.title || lesson.title);
+    setLessonTheoryDraft(override?.theory || lesson.theory || '');
     setIsLessonEditorOpen(true);
   };
 
@@ -361,7 +362,9 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleOpenActivityEditor = async (lesson: any) => {
-    setSelectedLessonForEdit(lesson);
+    const override = lessonOverrides[lesson.id];
+    const displayTitle = override?.title || lesson.title;
+    setSelectedLessonForEdit({ ...lesson, title: displayTitle });
     setIsActivityEditorOpen(true);
     setActivityQuestionsDraft([]);
     
@@ -369,7 +372,7 @@ export const AdminDashboard: React.FC = () => {
     try {
       const q = query(
         collection(db, 'questions'), 
-        where('topic', '==', lesson.title),
+        where('topic', '==', displayTitle),
         where('subject', '==', lesson.subject)
       );
       const snapshot = await getDocs(q);
@@ -907,7 +910,7 @@ export const AdminDashboard: React.FC = () => {
                                         {lesson.bimesterId}º Bimestre • {lesson.id}
                                       </div>
                                     <h5 className="font-bold text-slate-800 dark:text-slate-100 mb-4 group-hover:text-tocantins-blue dark:group-hover:text-tocantins-yellow transition-colors leading-tight">
-                                      {lesson.title}
+                                      {lessonOverrides?.[lesson.id]?.title || lesson.title}
                                     </h5>
                                   </div>
                                   <div className="flex gap-2">
