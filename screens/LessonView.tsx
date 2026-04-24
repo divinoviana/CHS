@@ -324,7 +324,7 @@ export const LessonView: React.FC = () => {
                              <p className="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">{q.question}</p>
                           </div>
                           <div className="space-y-3">
-                             {Object.entries(q.options).map(([opt, text]) => (
+                             {['a', 'b', 'c', 'd', 'e'].map(opt => q.options[opt as keyof typeof q.options] && (
                                <button 
                                  key={opt}
                                  onClick={() => handleOptionSelect(q.id!, opt)}
@@ -334,7 +334,7 @@ export const LessonView: React.FC = () => {
                                      {opt}
                                   </span>
                                   <span className={`text-sm font-medium ${answers[`obj-${q.id}`] === opt ? 'text-blue-900 dark:text-blue-100' : 'text-slate-600 dark:text-slate-400'}`}>
-                                     {text as string}
+                                     {q.options[opt as keyof typeof q.options] as string}
                                   </span>
                                </button>
                              ))}

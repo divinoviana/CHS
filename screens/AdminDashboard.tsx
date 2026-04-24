@@ -373,7 +373,8 @@ export const AdminDashboard: React.FC = () => {
       const q = query(
         collection(db, 'questions'), 
         where('topic', '==', displayTitle),
-        where('subject', '==', lesson.subject)
+        where('subject', '==', lesson.subject),
+        orderBy('created_at', 'asc')
       );
       const snapshot = await getDocs(q);
       setActivityQuestionsDraft(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -712,7 +713,8 @@ export const AdminDashboard: React.FC = () => {
 
         if (q.type === 'objective' && q.options) {
           docPdf.setFont('helvetica', 'normal');
-          Object.entries(q.options).forEach(([key, val]: [string, any]) => {
+          ['a', 'b', 'c', 'd', 'e'].forEach(key => {
+            const val = q.options[key];
             if (val) {
               const optLines = docPdf.splitTextToSize(`${key.toUpperCase()}) ${val}`, 160);
               docPdf.text(optLines, 25, yOffset);
@@ -1046,23 +1048,27 @@ export const AdminDashboard: React.FC = () => {
                                
                                {q.type === 'objective' && (
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
-                                   {Object.entries(q.options).map(([key, val]: [string, any]) => (
-                                     <div 
-                                       key={key} 
-                                       className={`p-3 rounded-xl text-xs font-bold border flex items-center gap-3 ${
-                                         key === q.correct_option 
-                                           ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 shadow-sm' 
-                                           : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500'
-                                       }`}
-                                     >
-                                       <div className={`w-6 h-6 rounded-lg flex items-center justify-center uppercase ${
-                                          key === q.correct_option ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                                       }`}>
-                                         {key}
+                                   {['a', 'b', 'c', 'd', 'e'].map((key) => {
+                                     const val = q.options?.[key];
+                                     if (!val) return null;
+                                     return (
+                                       <div 
+                                         key={key} 
+                                         className={`p-3 rounded-xl text-xs font-bold border flex items-center gap-3 ${
+                                           key === q.correct_option 
+                                             ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                                             : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500'
+                                         }`}
+                                       >
+                                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center uppercase ${
+                                            key === q.correct_option ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                         }`}>
+                                           {key}
+                                         </div>
+                                         {val}
                                        </div>
-                                       {val}
-                                     </div>
-                                   ))}
+                                     );
+                                   })}
                                  </div>
                                )}
                              </div>
@@ -1624,10 +1630,22 @@ export const AdminDashboard: React.FC = () => {
                          </div>
                        ) : (
                          activityQuestionsDraft.map((q: any, idx) => (
-                           <div key={q.id || idx} className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800 group transition-all">
+                           <div key={q.id || idx} className="p-6 bg-slate-50 dark:bg-slate-800/20 rounded-3xl border border-slate-100 dark:border-slate-800 group transition-all">
                               <div className="flex justify-between items-start gap-4">
-                                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed pr-8">{q.question_text}</p>
-                                 <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                                 <div className="flex-1">
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed mb-3">{q.question_text}</p>
+                                    {q.type === 'objective' && q.options && (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                         {['a', 'b', 'c', 'd', 'e'].map(opt => q.options[opt] && (
+                                            <div key={opt} className={`p-2 rounded-xl text-[10px] font-bold border flex items-center gap-2 ${opt === q.correct_option ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 text-emerald-600' : 'bg-white dark:bg-slate-800 border-slate-100 text-slate-500'}`}>
+                                               <span className={`w-5 h-5 rounded-lg flex items-center justify-center uppercase ${opt === q.correct_option ? 'bg-emerald-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{opt}</span>
+                                               <span className="truncate">{q.options[opt]}</span>
+                                            </div>
+                                         ))}
+                                      </div>
+                                    )}
+                                 </div>
+                                 <button onClick={() => handleRemoveQuestionFromDraft(q.id)} className="p-2 text-slate-300 hover:text-red-500 transition-all cursor-pointer">
                                     <Trash2 size={16}/>
                                  </button>
                               </div>
@@ -1655,6 +1673,7 @@ export const AdminDashboard: React.FC = () => {
                        </div>
 
                        <div className="space-y-3">
+                          <p className="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest mb-1 italic">Dica: Clique na letra para marcar a correta</p>
                           {['a', 'b', 'c', 'd', 'e'].map(opt => (
                             <div key={opt} className="flex items-center gap-3">
                                <button 

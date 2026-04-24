@@ -181,7 +181,7 @@ export const EvaluationView: React.FC = () => {
                        <p className="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">{q.questionText}</p>
                        
                        <div className="space-y-3">
-                          {Object.entries(q.options).map(([key, val]) => (
+                          {['a', 'b', 'c', 'd', 'e'].map(key => q.options[key as keyof typeof q.options] && (
                              <button 
                                key={key} 
                                onClick={() => handleOptionSelect(q.id, key)}
@@ -191,7 +191,7 @@ export const EvaluationView: React.FC = () => {
                                    {key}
                                 </span>
                                 <span className={`text-sm leading-relaxed ${answers[q.id] === key ? 'text-blue-900 dark:text-blue-100 font-bold' : 'text-slate-600 dark:text-slate-400 font-medium'}`}>
-                                   {val as string}
+                                   {q.options[key as keyof typeof q.options] as string}
                                 </span>
                              </button>
                           ))}
