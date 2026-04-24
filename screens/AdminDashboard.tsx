@@ -78,6 +78,7 @@ export const AdminDashboard: React.FC = () => {
   // Dados do Banco
   const [questionBank, setQuestionBank] = useState<any[]>([]);
   const [activityBank, setActivityBank] = useState<any[]>([]);
+  const [lessonOverrides, setLessonOverrides] = useState<Record<string, any>>({});
   const [students, setStudents] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [savedActivities, setSavedActivities] = useState<string[]>([]);
@@ -144,6 +145,7 @@ export const AdminDashboard: React.FC = () => {
     if (!isAuthLoading && (teacherSubject || isSuper)) {
       fetchQuestionBank();
       fetchSavedActivities();
+      fetchLessonOverrides();
       fetchStudents();
       fetchSubmissions();
       fetchChatSessions();
@@ -265,6 +267,20 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchLessonOverrides = async () => {
+    try {
+      const q = query(collection(db, 'lesson_overrides'));
+      const snapshot = await getDocs(q);
+      const overrides: Record<string, any> = {};
+      snapshot.docs.forEach(doc => {
+        overrides[doc.id] = { id: doc.id, ...doc.data() };
+      });
+      setLessonOverrides(overrides);
+    } catch (e) {
+      console.error("Erro ao buscar overrides de aulas:", e);
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -273,6 +289,7 @@ export const AdminDashboard: React.FC = () => {
         fetchSubmissions(),
         fetchQuestionBank(),
         fetchSavedActivities(),
+        fetchLessonOverrides(),
         fetchChatSessions()
       ]);
     } catch (e) {
@@ -323,11 +340,23 @@ export const AdminDashboard: React.FC = () => {
         teacher_id: auth.currentUser?.uid || 'admin'
       });
       alert("Conteúdo da aula salvo com sucesso!");
+      fetchLessonOverrides();
       setIsLessonEditorOpen(false);
     } catch (e: any) {
       handleFirestoreError(e, OperationType.UPDATE, 'lesson_overrides');
     } finally {
       setIsSavingLesson(false);
+    }
+  };
+
+  const handleDeleteLessonOverride = async (lessonId: string) => {
+    if (!confirm("Isso irá remover o conteúdo customizado desta aula e voltar ao padrão oficial. Confirmar?")) return;
+    try {
+      await deleteDoc(doc(db, 'lesson_overrides', lessonId));
+      alert("Conteúdo customizado removido.");
+      fetchLessonOverrides();
+    } catch (e: any) {
+      alert("Erro ao remover: " + e.message);
     }
   };
 
@@ -416,11 +445,12 @@ export const AdminDashboard: React.FC = () => {
       const qSnap = await getDocs(qQ);
       for (const d of qSnap.docs) await deleteDoc(doc(db, 'questions', d.id));
       
-      alert("Atividade e questões removidas.");
+      alert("Atividade e questões removidas com sucesso.");
       fetchSavedActivities();
       fetchQuestionBank();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert("Erro ao remover atividade: " + (e.message || "Erro desconhecido"));
     } finally {
       setLoading(false);
     }
@@ -430,9 +460,11 @@ export const AdminDashboard: React.FC = () => {
     if (!confirm("Excluir questão permanentemente?")) return;
     try {
       await deleteDoc(doc(db, 'questions', id));
+      alert("Questão removida com sucesso.");
       fetchQuestionBank();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert("Erro ao remover questão: " + (e.message || "Erro desconhecido"));
     }
   };
 
@@ -629,8 +661,72 @@ export const AdminDashboard: React.FC = () => {
     return Array.from(classes).sort();
   }, [students]);
 
-  const handleDownloadActivity = async (act: any) => {
-    alert("Iniciando exportação em PDF da atividade...");
+  const handleDownloadActivity = async (lesson: any) => {
+    setLoading(true);
+    try {
+      // 1. Buscar questões da aula
+      const q = query(
+        collection(db, 'questions'), 
+        where('lesson_id', '==', lesson.id)
+      );
+      const snapshot = await getDocs(q);
+      const questions = snapshot.docs.map(doc => doc.data());
+
+      if (questions.length === 0) {
+        alert("Esta atividade não possui questões cadastradas para exportar.");
+        return;
+      }
+
+      // 2. Gerar PDF usando jsPDF
+      const { default: jsPDF } = await import('jspdf');
+      const docPdf = new jsPDF();
+      let yOffset = 20;
+
+      // Cabeçalho
+      docPdf.setFontSize(18);
+      docPdf.text('Atividade de fixação', 105, yOffset, { align: 'center' });
+      yOffset += 10;
+      
+      docPdf.setFontSize(14);
+      docPdf.text(`${subjectsInfo[lesson.subject as Subject]?.name || lesson.subject}`, 105, yOffset, { align: 'center' });
+      yOffset += 10;
+      
+      docPdf.setFontSize(12);
+      docPdf.text(`Tema: ${lesson.title}`, 20, yOffset);
+      yOffset += 15;
+
+      // Questões
+      questions.forEach((q: any, index: number) => {
+        if (yOffset > 270) {
+          docPdf.addPage();
+          yOffset = 20;
+        }
+
+        docPdf.setFont('helvetica', 'bold');
+        const textLines = docPdf.splitTextToSize(`${index + 1}. ${q.question_text}`, 170);
+        docPdf.text(textLines, 20, yOffset);
+        yOffset += (textLines.length * 7);
+
+        if (q.type === 'objective' && q.options) {
+          docPdf.setFont('helvetica', 'normal');
+          Object.entries(q.options).forEach(([key, val]: [string, any]) => {
+            if (val) {
+              const optLines = docPdf.splitTextToSize(`${key.toUpperCase()}) ${val}`, 160);
+              docPdf.text(optLines, 25, yOffset);
+              yOffset += (optLines.length * 6);
+            }
+          });
+        }
+        yOffset += 5;
+      });
+
+      docPdf.save(`Atividade_${lesson.title.replace(/\s+/g, '_')}.pdf`);
+    } catch (e: any) {
+      console.error("Erro ao exportar PDF:", e);
+      alert("Erro ao exportar PDF: " + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -815,9 +911,22 @@ export const AdminDashboard: React.FC = () => {
                                     </h5>
                                   </div>
                                   <div className="flex gap-2">
+                                     {lessonOverrides?.[lesson.id] && (
+                                       <button 
+                                         onClick={() => handleDeleteLessonOverride(lesson.id)}
+                                         className="p-3 bg-red-50 dark:bg-red-900/10 text-red-400 hover:text-red-600 rounded-xl shadow-sm border border-red-100 dark:border-red-900/30 transition-all cursor-pointer"
+                                         title="Remover Conteúdo Postado"
+                                       >
+                                         <Trash2 size={18}/>
+                                       </button>
+                                     )}
                                      <button 
                                        onClick={() => handleOpenLessonEditor(lesson)}
-                                       className="p-3 bg-white dark:bg-slate-800 text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow rounded-xl shadow-sm border dark:border-slate-700 transition-all cursor-pointer"
+                                       className={`p-3 rounded-xl shadow-sm border transition-all cursor-pointer ${
+                                         lessonOverrides?.[lesson.id] 
+                                           ? 'bg-tocantins-blue text-white border-tocantins-blue shadow-lg shadow-blue-500/20' 
+                                           : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-tocantins-blue dark:hover:text-tocantins-yellow dark:border-slate-700'
+                                       }`}
                                      >
                                        <Presentation size={18}/>
                                      </button>
