@@ -19,10 +19,7 @@ export default defineConfig(({ mode }) => {
     base: './', // Use relative paths to be more flexible on Vercel/CDN
     define: {
       'process.env': {
-        API_KEY: JSON.stringify(API_KEY),
-        GEMINI_API_KEY: JSON.stringify(GEMINI_API_KEY),
-        SUPABASE_URL: JSON.stringify(SUPABASE_URL),
-        SUPABASE_ANON_KEY: JSON.stringify(SUPABASE_ANON_KEY)
+        GEMINI_API_KEY: JSON.stringify(GEMINI_API_KEY)
       },
       'process.browser': true
     }

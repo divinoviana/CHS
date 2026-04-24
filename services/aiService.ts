@@ -100,14 +100,11 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
 };
 
 const getAIClient = () => {
-  // Em ambientes Vite/Vercel, process.env pode não estar disponível no browser.
-  // Tentamos buscar de múltiplas fontes comuns.
   const apiKey = process.env.GEMINI_API_KEY || 
-                 (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-                 (window as any).GEMINI_API_KEY;
+                 (import.meta as any).env?.VITE_GEMINI_API_KEY;
 
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("Configuração Ausente: A chave GEMINI_API_KEY não foi encontrada no ambiente. Se você estiver usando o Vercel, certifique-se de adicionar VITE_GEMINI_API_KEY às variáveis de ambiente.");
+    return null;
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -115,6 +112,7 @@ const getAIClient = () => {
 export const generateActivityImage = async (prompt: string): Promise<string> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
+    if (!ai) throw new Error("IA Desabilitada: Chave API não configurada.");
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: {
@@ -194,6 +192,7 @@ export const generateFallbackActivity = (title: string, theory: string, defaultQ
 export const generateLessonActivity = async (lessonTitle: string, theory: string): Promise<LessonActivity> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
+    if (!ai) throw new Error("IA Desabilitada: Chave API não configurada.");
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -312,6 +311,7 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
 export const generateLessonPlan = async (subject: string, theme: string, grade: string): Promise<LessonPlan> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
+    if (!ai) throw new Error("IA Desabilitada: Chave API não configurada.");
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -367,6 +367,7 @@ export const generateBimonthlyEvaluation = async (
 ): Promise<GeneratedEvaluation> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
+    if (!ai) throw new Error("IA Desabilitada: Chave API não configurada.");
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -473,6 +474,7 @@ export const evaluateActivities = async (
 ): Promise<AIResponse> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
+    if (!ai) throw new Error("IA Desabilitada: Chave API não configurada.");
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -535,6 +537,7 @@ export const generatePedagogicalSummary = async (
 ): Promise<string> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
+    if (!ai) throw new Error("IA Desabilitada: Chave API não configurada.");
     const prompt = `Atue como um Coordenador Pedagógico especialista em análise de dados educacionais. 
     Gere um relatório analítico e estratégico em formato Markdown para o contexto: ${context === 'INDIVIDUAL' ? `Aluno: ${data.studentName}` : `Turma: ${data.schoolClass}`}.
     Disciplina: ${data.subject}.
