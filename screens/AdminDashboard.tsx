@@ -231,7 +231,9 @@ export const AdminDashboard: React.FC = () => {
       data.sort((a: any, b: any) => {
         const dateA = a.created_at?.toDate?.() || a.submitted_at?.toDate?.() || 0;
         const dateB = b.created_at?.toDate?.() || b.submitted_at?.toDate?.() || 0;
-        return (dateB instanceof Date ? dateB.getTime() : 0) - (dateA instanceof Date ? dateA.getTime() : 0);
+        const timeA = dateA instanceof Date ? dateA.getTime() : (typeof dateA === 'number' ? dateA : 0);
+        const timeB = dateB instanceof Date ? dateB.getTime() : (typeof dateB === 'number' ? dateB : 0);
+        return timeB - timeA;
       });
       
       setSubmissions(data);
@@ -590,7 +592,10 @@ export const AdminDashboard: React.FC = () => {
         sub.lesson_title?.toLowerCase().includes(searchTerm.toLowerCase());
       
       // Fallback: se a submissão não tiver turma, procuramos no perfil atual do estudante
-      const studentProfile = students.find(s => s.name === sub.student_name || s.id === sub.student_id);
+      const studentProfile = students.find(s => 
+        (sub.student_id && s.id === sub.student_id) || 
+        (sub.student_name && s.name?.toLowerCase().trim() === sub.student_name.toLowerCase().trim())
+      );
       const studentClass = sub.school_class || studentProfile?.school_class;
       const matchesClass = filterClass === 'all' || studentClass === filterClass;
       
@@ -609,6 +614,7 @@ export const AdminDashboard: React.FC = () => {
       grade.bimesters.forEach(bimester => {
         bimester.lessons.forEach(lesson => {
           map[lesson.title] = bimester.id;
+          map[lesson.id] = bimester.id;
         });
       });
     });
@@ -623,7 +629,10 @@ export const AdminDashboard: React.FC = () => {
       const matchesSubject = filterSubject === 'all' || sub.subject === filterSubject;
       
       // Encontrar perfil do estudante para garantir filtros de turma/série
-      const studentProfile = students.find(s => s.id === sub.student_id || s.name === sub.student_name);
+      const studentProfile = students.find(s => 
+        (sub.student_id && s.id === sub.student_id) || 
+        (sub.student_name && s.name?.toLowerCase().trim() === sub.student_name.toLowerCase().trim())
+      );
       const studentClass = sub.school_class || studentProfile?.school_class;
       const studentGrade = String(sub.grade || studentProfile?.grade || studentClass?.charAt(0) || '');
       
@@ -634,7 +643,10 @@ export const AdminDashboard: React.FC = () => {
     });
 
     relevantSubmissions.forEach(sub => {
-      const studentProfile = students.find(s => s.id === sub.student_id || s.name === sub.student_name);
+      const studentProfile = students.find(s => 
+        (sub.student_id && s.id === sub.student_id) || 
+        (sub.student_name && s.name?.toLowerCase().trim() === sub.student_name.toLowerCase().trim())
+      );
       if (studentProfile) {
         if (!map[studentProfile.id]) {
           map[studentProfile.id] = { 
@@ -646,9 +658,10 @@ export const AdminDashboard: React.FC = () => {
         }
         map[studentProfile.id].submissionCount++;
         
-        const bimester = lessonToBimesterMap[sub.lesson_title] || 1;
+        const bimester = (sub.lesson_id ? lessonToBimesterMap[sub.lesson_id] : null) || lessonToBimesterMap[sub.lesson_title] || 1;
         map[studentProfile.id].bimesterGrades[bimester] = (map[studentProfile.id].bimesterGrades[bimester] || 0) + (Number(sub.score) || 0);
         map[studentProfile.id].activities.push({
+          id: sub.lesson_id,
           title: sub.lesson_title,
           score: sub.score,
           bimester: bimester,
