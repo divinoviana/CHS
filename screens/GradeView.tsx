@@ -75,7 +75,10 @@ export const GradeView: React.FC = () => {
       );
       
       const subsSnapshot = await getDocs(subsQ);
-      const subsData = subsSnapshot.docs.map(doc => doc.data().lesson_title.trim());
+      const subsData = subsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return data.lesson_id || data.lesson_title.trim();
+      });
 
       // 3. Fetch published lessons (overrides or activities)
       const overridesQ = query(collection(db, 'lesson_overrides'));
@@ -161,7 +164,7 @@ export const GradeView: React.FC = () => {
                 ) : (
                   exams.map(exam => {
                     const examTitle = `Avaliação Bimestral: ${exam.bimester}º Bimestre`;
-                    const isDone = userSubmissions.includes(examTitle);
+                    const isDone = userSubmissions.includes(exam.id) || userSubmissions.includes(examTitle);
 
                     return (
                       <Link 
@@ -225,7 +228,7 @@ export const GradeView: React.FC = () => {
                     <div className="divide-y divide-slate-50">
                       {filteredLessons.map((lesson) => {
                         const isPublished = publishedLessonIds.includes(lesson.id);
-                        const isLessonDone = userSubmissions.includes(lesson.title.trim());
+                        const isLessonDone = userSubmissions.includes(lesson.id) || userSubmissions.includes(lesson.title.trim());
                         
                         // Oculta se não estiver publicado (fator "apagar conteúdos antigos")
                         if (!isPublished) return null;

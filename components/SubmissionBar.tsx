@@ -17,6 +17,7 @@ interface Props {
   studentName: string;
   schoolClass: string;
   submissionDate: string;
+  lessonId: string;
   lessonTitle: string;
   subject: Subject; 
   submissionData: SubmissionItem[];
@@ -28,6 +29,7 @@ export const SubmissionBar: React.FC<Props> = ({
   studentName, 
   schoolClass, 
   submissionDate,
+  lessonId,
   lessonTitle, 
   subject,
   submissionData,
@@ -43,7 +45,7 @@ export const SubmissionBar: React.FC<Props> = ({
     const safeSchoolClass = schoolClass?.trim() || student?.school_class || 'N/A';
 
     if (submissionData.length === 0) {
-      alert("Por favor, responda as atividades antes de enviar.");
+      alert("Por favor, responda as atividades antes de finalizar.");
       return;
     }
 
@@ -76,6 +78,7 @@ export const SubmissionBar: React.FC<Props> = ({
         student_name: safeStudentName,
         school_class: safeSchoolClass,
         grade: student?.grade || '1',
+        lesson_id: lessonId,
         lesson_title: lessonTitle?.trim() || 'Aula sem título',
         subject: subject,
         submitted_at: serverTimestamp(),
@@ -88,7 +91,7 @@ export const SubmissionBar: React.FC<Props> = ({
 
       console.log("Gravação concluída com sucesso.");
       setDbStatus('saved');
-      alert(`Atividade de ${subject.toUpperCase()} enviada com sucesso!`);
+      alert(`Atividade de ${subject.toUpperCase()} enviada com sucesso ao professor!`);
     } catch (error: any) {
       console.error("Erro fatal ao enviar atividade:", error);
       setDbStatus('error');
@@ -114,22 +117,22 @@ export const SubmissionBar: React.FC<Props> = ({
             <p className="text-xs font-bold text-slate-600">
               {dbStatus === 'saving' ? 'Gravando no servidor...' : 
                dbStatus === 'saved' ? 'Atividade Sincronizada!' : 
-               dbStatus === 'error' ? 'Falha na Gravação' : `Enviar p/ Prof. de ${subject}`}
+               dbStatus === 'error' ? 'Falha na Gravação' : `Sincronizar c/ Prof. de ${subject}`}
             </p>
           </div>
         </div>
 
         <button 
           onClick={handleInternalSend} 
-          disabled={isGenerating} 
+          disabled={isGenerating || dbStatus === 'saved'} 
           className={`relative overflow-hidden font-bold py-3.5 px-8 rounded-2xl flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-lg ${
             dbStatus === 'saved' 
-            ? 'bg-green-600 hover:bg-green-700 text-white' 
-            : 'bg-tocantins-blue hover:bg-blue-800 text-white'
+            ? 'bg-green-600 text-white cursor-default' 
+            : 'bg-tocantins-blue hover:bg-blue-800 text-white cursor-pointer'
           }`}
         >
           {isGenerating ? <Loader2 className="animate-spin" size={18}/> : <Send size={18}/>}
-          <span>{dbStatus === 'saved' ? 'Enviar Novamente' : 'Finalizar Atividade'}</span>
+          <span>{dbStatus === 'saved' ? 'Atividade Enviada' : 'Finalizar e Enviar Atividade'}</span>
         </button>
       </div>
     </div>

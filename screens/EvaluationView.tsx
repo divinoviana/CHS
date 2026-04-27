@@ -98,6 +98,7 @@ export const EvaluationView: React.FC = () => {
         student_name: student.name.trim(),
         school_class: student.school_class.trim(),
         grade: student.grade,
+        lesson_id: examId,
         lesson_title: `Avaliação Bimestral: ${exam.bimester}º Bimestre`.trim(),
         subject: exam.subject,
         score: finalScore,
@@ -106,7 +107,8 @@ export const EvaluationView: React.FC = () => {
            answer: `Opção ${answers[q.id].toUpperCase()}`
         })),
         teacher_feedback: `Simulado automático finalizado. Acertos: ${correctCount}/${exam.questions.length}.`,
-        created_at: serverTimestamp()
+        submitted_at: serverTimestamp(),
+        status: 'completed'
       });
 
       setIsFinished(true);
@@ -218,13 +220,8 @@ export const EvaluationView: React.FC = () => {
                 {alreadyDone ? 'Prova já Realizada' : 'Simulado Concluído!'}
               </h2>
               <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-10">
-                {alreadyDone ? 'Você já utilizou sua única chance nesta disciplina.' : 'Sua nota foi enviada automaticamente para o professor.'}
+                {alreadyDone ? 'Você já utilizou sua única chance nesta disciplina.' : 'Sua resposta foi enviada e o professor irá validar sua atividade.'}
               </p>
-              
-              <div className="bg-slate-50 dark:bg-slate-800 rounded-[40px] p-8 mb-10 inline-block border dark:border-slate-700">
-                 <p className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase mb-2">Sua Nota Final</p>
-                 <div className="text-6xl font-black text-tocantins-blue dark:text-tocantins-yellow">{score.toFixed(1)}</div>
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-md mx-auto">
                  <button onClick={() => navigate('/')} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 py-4 rounded-2xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition">Voltar ao Portal</button>

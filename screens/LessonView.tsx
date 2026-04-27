@@ -364,18 +364,15 @@ export const LessonView: React.FC = () => {
                   </div>
                 )}
 
-                <button 
-                  type="button"
-                  onClick={handleLocalCorrection} 
-                  disabled={aiLoading}
-                  className="w-full bg-gradient-to-r from-tocantins-blue to-indigo-700 text-white font-black py-6 rounded-[32px] flex items-center justify-center gap-3 shadow-xl hover:shadow-blue-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer disabled:opacity-50"
-                >
-                  {aiLoading ? <Loader2 className="animate-spin" size={24}/> : <CheckCircle2 size={24} />} 
-                  {aiLoading ? "IA CORRIGINDO..." : "FINALIZAR E VER CORREÇÃO"}
-                </button>
-
-              </div>
-            ) : (
+                  <div className="bg-blue-50 dark:bg-blue-900/10 p-8 rounded-[32px] border border-blue-100 dark:border-blue-900/30 text-center animate-in fade-in zoom-in-95">
+                    <Sparkles className="mx-auto text-tocantins-blue dark:text-tocantins-yellow mb-4" size={32} />
+                    <h4 className="text-blue-900 dark:text-blue-100 font-black uppercase text-sm tracking-tighter">Atividade Concluída?</h4>
+                    <p className="text-blue-700 dark:text-blue-400 text-[10px] font-bold uppercase tracking-widest mt-2 px-8">
+                      Clique no botão azul abaixo para enviar suas respostas. Seu professor receberá sua atividade para correção.
+                    </p>
+                  </div>
+                </div>
+              ) : (
               <div className="bg-slate-50 dark:bg-slate-800/50 p-12 rounded-[40px] border border-slate-100 dark:border-slate-800 text-center animate-in fade-in">
                 <ListChecks className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={48} />
                 <h4 className="text-slate-800 dark:text-slate-200 font-bold uppercase text-xs tracking-widest">Atividades em Preparação</h4>
@@ -391,11 +388,12 @@ export const LessonView: React.FC = () => {
           studentName={student.name} 
           schoolClass={student.school_class} 
           submissionDate={getTodayString()} 
+          lessonId={lessonId!}
           lessonTitle={displayTitle} 
           subject={foundLesson.subject} 
           submissionData={getSubmissionData()} 
           aiData={aiData} 
-          theory={displayTheory} 
+          theory={displayTheory || ''} 
         />
       )}
     </div>
