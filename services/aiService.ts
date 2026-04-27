@@ -467,10 +467,16 @@ export const generateBimonthlyEvaluation = async (
   });
 };
 
+export interface EvaluationQuestionItem {
+  question: string;
+  answer: string;
+  correctAnswer?: string;
+}
+
 export const evaluateActivities = async (
   lessonTitle: string,
   theoryContext: string,
-  questionsAndAnswers: { question: string; answer: string }[]
+  questionsAndAnswers: EvaluationQuestionItem[]
 ): Promise<AIResponse> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
@@ -501,11 +507,11 @@ export const evaluateActivities = async (
     
     Contexto teórico da aula: "${theoryContext.substring(0, 2000)}"
     
-    Respostas do aluno: ${JSON.stringify(questionsAndAnswers)}
+    Respostas do aluno (contendo pergunta, resposta do aluno e resposta correta esperada se disponível): ${JSON.stringify(questionsAndAnswers)}
     
     Para cada questão, forneça:
-    - isCorrect: true se a resposta estiver correta ou parcialmente correta com bom embasamento, false caso contrário.
-    - score: Uma nota de 0 a 10 para a resposta.
+    - isCorrect: true se a resposta estiver correta ou parcialmente correta com bom embasamento, false caso contrário. SE HOUVER 'correctAnswer' NO JSON PARA A QUESTÃO, USE-A COMO CRITÉRIO ABSOLUTO.
+    - score: Uma nota de 0 a 10 para a resposta. (Se 'correctAnswer' estiver presente e a resposta do aluno for igual, a nota deve ser 10. Se for diferente, 0).
     - feedback: Um feedback detalhado, explicando o porquê da nota, corrigindo possíveis erros conceituais e sugerindo pontos de melhoria ou aprofundamento.
     
     No 'generalComment', faça um balanço geral do desempenho do aluno nesta atividade, destacando pontos fortes e fracos.`;

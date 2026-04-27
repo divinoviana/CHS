@@ -163,7 +163,8 @@ export const LessonView: React.FC = () => {
         data.push({ 
           activityTitle: "Questões Objetivas", 
           question: q.question, 
-          answer: `Opção ${ans.toUpperCase()}: ${q.options[ans as keyof typeof q.options]}` 
+          answer: `Opção ${ans.toUpperCase()}: ${q.options[ans as keyof typeof q.options]}`,
+          correctAnswer: `Opção ${q.correctOption.toUpperCase()}: ${q.options[q.correctOption as keyof typeof q.options]}`
         });
       }
     });
@@ -193,7 +194,11 @@ export const LessonView: React.FC = () => {
     setIsAIModalOpen(true);
     
     try {
-      const qAndA = subData.map(s => ({ question: s.question, answer: s.answer }));
+      const qAndA = subData.map(s => ({ 
+        question: s.question, 
+        answer: s.answer,
+        correctAnswer: s.correctAnswer 
+      }));
       const evaluation = await evaluateActivities(displayTitle, displayTheory, qAndA);
       setAiData(evaluation);
     } catch (e: any) {

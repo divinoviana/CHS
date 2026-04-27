@@ -11,6 +11,7 @@ export interface SubmissionItem {
   activityTitle: string;
   question: string;
   answer: string;
+  correctAnswer?: string;
 }
 
 interface Props {
@@ -57,7 +58,11 @@ export const SubmissionBar: React.FC<Props> = ({
       // Tenta avaliar com IA se não tiver dados, mas não deixa isso travar o envio
       if (!currentAIData) {
         try {
-          const q = submissionData.map(item => ({ question: item.question, answer: item.answer }));
+          const q = submissionData.map(item => ({ 
+            question: item.question, 
+            answer: item.answer,
+            correctAnswer: item.correctAnswer
+          }));
           currentAIData = await evaluateActivities(lessonTitle, theory, q);
         } catch (aiErr) {
           console.warn("Falha na avaliação por IA, enviando sem nota automática:", aiErr);
